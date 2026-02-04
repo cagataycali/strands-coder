@@ -1,0 +1,395 @@
+name: Control Loop
+
+on:
+  schedule:
+    # Run every hour at minute 0
+    # - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      force_check:
+        description: 'Force check schedules regardless of time'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  control:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Schedules and Dispatch Jobs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+          AGENT_SCHEDULES: ${{ vars.AGENT_SCHEDULES }}
+        run: |
+          #!/bin/bash
+          set -e
+          
+          echo "🕐 Control Loop - $(date -u '+%Y-%m-%d %H:%M') UTC"
+          echo "Repository: ${{ github.repository }}"
+          
+          # Parse AGENT_SCHEDULES JSON
+          if [ -z "$AGENT_SCHEDULES" ] || [ "$AGENT_SCHEDULES" = "{}" ]; then
+            echo "ℹ️ No schedules configured (AGENT_SCHEDULES is empty)"
+            echo "To add schedules, use the scheduler tool or set the AGENT_SCHEDULES variable"
+            exit 0
+          fi
+          
+          # Get current time components (UTC)
+          CURRENT_MINUTE=$(date -u '+%M' | sed 's/^0//')
+          CURRENT_HOUR=$(date -u '+%H' | sed 's/^0//')
+          CURRENT_DAY=$(date -u '+%d' | sed 's/^0//')
+          CURRENT_MONTH=$(date -u '+%m' | sed 's/^0//')
+          CURRENT_DOW=$(date -u '+%w')  # 0=Sunday
+          CURRENT_EPOCH=$(date -u '+%s')
+          
+          # Handle empty values (when minute/hour is 0)
+          [ -z "$CURRENT_MINUTE" ] && CURRENT_MINUTE=0
+          [ -z "$CURRENT_HOUR" ] && CURRENT_HOUR=0
+          [ -z "$CURRENT_DAY" ] && CURRENT_DAY=1
+          [ -z "$CURRENT_MONTH" ] && CURRENT_MONTH=1
+          
+          echo "Current time: minute=$CURRENT_MINUTE hour=$CURRENT_HOUR day=$CURRENT_DAY month=$CURRENT_MONTH dow=$CURRENT_DOW epoch=$CURRENT_EPOCH"
+          
+          # Window for catching missed jobs (24 hours = 86400 seconds)
+          # This handles GitHub Actions schedule delays/skips
+          # Large window ensures daily jobs are caught even if control loop was down
+          CATCH_UP_WINDOW=86400
+          
+          # Function to check if a cron field matches
+          cron_field_matches() {
+            local field="$1"
+            local value="$2"
+            
+            # Wildcard matches all
+            if [ "$field" = "*" ]; then
+              return 0
+            fi
+            
+            # Step values like */15
+            if [[ "$field" == "*/"* ]]; then
+              local step="${field#*/}"
+              if [ $((value % step)) -eq 0 ]; then
+                return 0
+              fi
+              return 1
+            fi
+            
+            # Lists like 1,3,5
+            if [[ "$field" == *","* ]]; then
+              IFS=',' read -ra VALUES <<< "$field"
+              for v in "${VALUES[@]}"; do
+                if [ "$v" -eq "$value" ] 2>/dev/null; then
+                  return 0
+                fi
+              done
+              return 1
+            fi
+            
+            # Ranges like 1-5
+            if [[ "$field" == *"-"* ]] && [[ "$field" != *"/"* ]]; then
+              local start="${field%-*}"
+              local end="${field#*-}"
+              if [ "$value" -ge "$start" ] && [ "$value" -le "$end" ]; then
+                return 0
+              fi
+              return 1
+            fi
+            
+            # Direct match
+            if [ "$field" -eq "$value" ] 2>/dev/null; then
+              return 0
+            fi
+            
+            return 1
+          }
+          
+          # Function to check if a cron should have triggered within a time window
+          # This uses a window-based approach instead of exact minute matching
+          cron_should_trigger() {
+            local cron="$1"
+            local last_triggered="$2"  # epoch timestamp or empty
+            
+            read -r cron_minute cron_hour cron_dom cron_month cron_dow <<< "$cron"
+            
+            # If no last_triggered, assume it never ran (use epoch 0)
+            # This ensures the job will trigger on its first scheduled window
+            if [ -z "$last_triggered" ] || [ "$last_triggered" = "null" ] || [ "$last_triggered" = "0" ]; then
+              last_triggered=0
+              echo "    (No previous run recorded)"
+            fi
+            
+            # Calculate the most recent scheduled time based on cron
+            # For simplicity, check if we're within the scheduled hour
+            
+            # Get target hour (handle wildcards)
+            local target_hour="$cron_hour"
+            if [ "$target_hour" = "*" ]; then
+              target_hour="$CURRENT_HOUR"
+            fi
+            
+            # Get target minute (handle wildcards)  
+            local target_minute="$cron_minute"
+            if [ "$target_minute" = "*" ]; then
+              target_minute=0
+            fi
+            
+            # Check day of week constraint
+            if [ "$cron_dow" != "*" ]; then
+              if ! cron_field_matches "$cron_dow" "$CURRENT_DOW"; then
+                # Not the right day
+                return 1
+              fi
+            fi
+            
+            # Check day of month constraint
+            if [ "$cron_dom" != "*" ]; then
+              if ! cron_field_matches "$cron_dom" "$CURRENT_DAY"; then
+                return 1
+              fi
+            fi
+            
+            # Check month constraint
+            if [ "$cron_month" != "*" ]; then
+              if ! cron_field_matches "$cron_month" "$CURRENT_MONTH"; then
+                return 1
+              fi
+            fi
+            
+            # Calculate the scheduled epoch for today at target_hour:target_minute
+            local today_date=$(date -u '+%Y-%m-%d')
+            local scheduled_time="${today_date}T$(printf '%02d' $target_hour):$(printf '%02d' $target_minute):00"
+            local scheduled_epoch=$(date -u -d "$scheduled_time" '+%s' 2>/dev/null || echo "0")
+            
+            if [ "$scheduled_epoch" = "0" ]; then
+              echo "    ⚠️ Failed to calculate scheduled epoch"
+              return 1
+            fi
+            
+            echo "    Scheduled time: $scheduled_time (epoch: $scheduled_epoch)"
+            echo "    Last triggered: $last_triggered"
+            echo "    Current epoch: $CURRENT_EPOCH"
+            
+            # Check if:
+            # 1. The scheduled time has passed (scheduled_epoch <= CURRENT_EPOCH)
+            # 2. We haven't triggered since the scheduled time (last_triggered < scheduled_epoch)
+            # 3. We're within the catch-up window (CURRENT_EPOCH - scheduled_epoch <= CATCH_UP_WINDOW)
+            
+            if [ "$scheduled_epoch" -le "$CURRENT_EPOCH" ] && \
+               [ "$last_triggered" -lt "$scheduled_epoch" ] && \
+               [ $((CURRENT_EPOCH - scheduled_epoch)) -le "$CATCH_UP_WINDOW" ]; then
+              echo "    ✅ Should trigger (scheduled time passed and not yet triggered)"
+              return 0
+            fi
+            
+            echo "    ⏰ Not due (already triggered or not in window)"
+            return 1
+          }
+          
+          # Function to check if run_at time has passed (within window)
+          run_at_matches() {
+            local run_at="$1"
+            
+            # Parse ISO datetime and convert to epoch
+            local run_at_clean=$(echo "$run_at" | sed 's/Z$//')
+            local run_at_epoch=$(date -u -d "$run_at_clean" '+%s' 2>/dev/null || echo "0")
+            
+            if [ "$run_at_epoch" = "0" ]; then
+              echo "  ⚠️ Failed to parse run_at: $run_at"
+              return 1
+            fi
+            
+            # Check if run_at is within the window (-1 to +CATCH_UP_WINDOW/60 minutes from now)
+            local diff=$((CURRENT_EPOCH - run_at_epoch))
+            local diff_minutes=$((diff / 60))
+            local window_minutes=$((CATCH_UP_WINDOW / 60))
+            
+            if [ "$diff_minutes" -ge -1 ] && [ "$diff_minutes" -le "$window_minutes" ]; then
+              return 0
+            fi
+            
+            return 1
+          }
+          
+          # Parse and check each job
+          JOBS_TO_RUN=""
+          JOBS_TO_REMOVE=""
+          JOBS_TO_UPDATE=""
+          JOB_COUNT=0
+          
+          # Use jq to iterate through jobs
+          for job_id in $(echo "$AGENT_SCHEDULES" | jq -r '.jobs | keys[]' 2>/dev/null); do
+            echo ""
+            echo "━━━ Checking job: $job_id ━━━"
+            
+            # Get job details
+            enabled=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].enabled // true")
+            cron_expr=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].cron // \"\"")
+            run_at=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].run_at // \"\"")
+            once=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].once // false")
+            last_triggered=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].last_triggered // 0")
+            
+            if [ "$enabled" != "true" ]; then
+              echo "  ⏭️ Skipped (disabled)"
+              continue
+            fi
+            
+            should_run=false
+            
+            # Check cron expression with window-based approach
+            if [ -n "$cron_expr" ] && [ "$cron_expr" != "null" ]; then
+              echo "  Cron: $cron_expr"
+              if [ "${{ inputs.force_check }}" = "true" ]; then
+                echo "  ✅ Force check enabled"
+                should_run=true
+              elif cron_should_trigger "$cron_expr" "$last_triggered"; then
+                should_run=true
+                # Mark for timestamp update
+                JOBS_TO_UPDATE="$JOBS_TO_UPDATE $job_id"
+              fi
+            fi
+            
+            # Check run_at datetime
+            if [ -n "$run_at" ] && [ "$run_at" != "null" ]; then
+              echo "  Run At: $run_at"
+              if [ "${{ inputs.force_check }}" = "true" ] || run_at_matches "$run_at"; then
+                echo "  ✅ Run At MATCH"
+                should_run=true
+                if [ "$once" = "true" ]; then
+                  echo "  🗑️ Will be removed after dispatch (once=true)"
+                  JOBS_TO_REMOVE="$JOBS_TO_REMOVE $job_id"
+                fi
+              else
+                echo "  ⏰ Run At not due yet"
+              fi
+            fi
+            
+            if [ "$should_run" = "true" ]; then
+              JOBS_TO_RUN="$JOBS_TO_RUN $job_id"
+              JOB_COUNT=$((JOB_COUNT + 1))
+            fi
+          done
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          if [ $JOB_COUNT -eq 0 ]; then
+            echo "📭 No jobs scheduled to run at this time"
+            exit 0
+          fi
+          
+          echo "🚀 Dispatching $JOB_COUNT job(s)..."
+          
+          # Use PAT_TOKEN if available (required for workflow dispatch), fallback to GITHUB_TOKEN
+          TOKEN="${PAT_TOKEN:-$GITHUB_TOKEN}"
+          
+          # Track successfully dispatched jobs for timestamp update
+          DISPATCHED_JOBS=""
+          
+          # Dispatch each matching job
+          for job_id in $JOBS_TO_RUN; do
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📤 Dispatching: $job_id"
+            
+            # Extract job configuration
+            prompt=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].prompt // \"\"")
+            system_prompt=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].system_prompt // \"\"")
+            tools=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].tools // \"\"")
+            model=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].model // \"\"")
+            max_tokens=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].max_tokens // \"\"")
+            context=$(echo "$AGENT_SCHEDULES" | jq -r ".jobs[\"$job_id\"].context // \"\"")
+            
+            echo "  Prompt: ${prompt:0:80}..."
+            
+            # Build the full prompt with context
+            full_prompt="[Scheduled Job: $job_id]\n\n$prompt"
+            if [ -n "$context" ] && [ "$context" != "null" ]; then
+              full_prompt="$full_prompt\n\nContext:\n$context"
+            fi
+            
+            # Build inputs JSON
+            inputs_json=$(jq -n \
+              --arg prompt "$full_prompt" \
+              --arg system_prompt "$system_prompt" \
+              --arg tools "$tools" \
+              --arg model "$model" \
+              --arg max_tokens "$max_tokens" \
+              '{prompt: $prompt}
+              | if $system_prompt != "" and $system_prompt != "null" then . + {system_prompt: $system_prompt} else . end
+              | if $tools != "" and $tools != "null" then . + {tools: $tools} else . end
+              | if $model != "" and $model != "null" then . + {model: $model} else . end
+              | if $max_tokens != "" and $max_tokens != "null" then . + {max_tokens: $max_tokens} else . end')
+            
+            echo "  Inputs: $(echo "$inputs_json" | jq -c .)"
+            
+            # Dispatch the workflow
+            response=$(curl -s -w "\n%{http_code}" -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/agent.yml/dispatches" \
+              -d "{\"ref\": \"main\", \"inputs\": $inputs_json}")
+            
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+            
+            if [ "$http_code" = "204" ]; then
+              echo "  ✅ Dispatched successfully"
+              DISPATCHED_JOBS="$DISPATCHED_JOBS $job_id"
+            else
+              echo "  ❌ Failed to dispatch: HTTP $http_code"
+              echo "  Response: $body"
+            fi
+          done
+          
+          # Update AGENT_SCHEDULES with last_triggered timestamps and remove once=true jobs
+          updated_schedules="$AGENT_SCHEDULES"
+          
+          # Update last_triggered for dispatched cron jobs
+          for job_id in $DISPATCHED_JOBS; do
+            # Only update if it's a cron job (not a one-time job being removed)
+            if echo "$JOBS_TO_UPDATE" | grep -qw "$job_id"; then
+              echo ""
+              echo "📝 Updating last_triggered for: $job_id"
+              updated_schedules=$(echo "$updated_schedules" | jq ".jobs[\"$job_id\"].last_triggered = $CURRENT_EPOCH")
+            fi
+          done
+          
+          # Remove once=true jobs that have been dispatched
+          for job_id in $JOBS_TO_REMOVE; do
+            if echo "$DISPATCHED_JOBS" | grep -qw "$job_id"; then
+              echo ""
+              echo "🗑️ Removing one-time job: $job_id"
+              updated_schedules=$(echo "$updated_schedules" | jq "del(.jobs[\"$job_id\"])")
+            fi
+          done
+          
+          # Save updated schedules if any changes
+          if [ "$updated_schedules" != "$AGENT_SCHEDULES" ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "💾 Saving updated schedule..."
+            
+            update_response=$(curl -s -w "\n%{http_code}" -X PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/variables/AGENT_SCHEDULES" \
+              -d "{\"name\": \"AGENT_SCHEDULES\", \"value\": $(echo "$updated_schedules" | jq -c . | jq -Rs .)}")
+            
+            update_code=$(echo "$update_response" | tail -n1)
+            if [ "$update_code" = "204" ]; then
+              echo "  ✅ Schedule updated successfully"
+            else
+              echo "  ⚠️ Failed to update schedule: HTTP $update_code"
+            fi
+          fi
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🏁 Control loop complete - dispatched $JOB_COUNT job(s)"

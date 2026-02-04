@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Strands</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Strands">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="Strands Dashboard - Agent monitoring">
+    
+    <!-- iOS Splash Screens -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
+    <link rel="apple-touch-startup-image" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23000'/><text y='.9em' x='50%' text-anchor='middle' font-size='90'>🧬</text></svg>">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #000;
+            color: #fff;
+            line-height: 1.6;
+            overflow: hidden;
+            height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+        .app { display: flex; height: 100vh; flex-direction: column; }
+
+        .nav {
+            height: 60px;
+            background: rgba(255,255,255,0.03);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            padding-top: env(safe-area-inset-top);
+            padding-left: max(20px, env(safe-area-inset-left));
+            padding-right: max(20px, env(safe-area-inset-right));
+            gap: 12px;
+            overflow-x: auto;
+            flex-shrink: 0;
+            min-height: calc(60px + env(safe-area-inset-top));
+        }
+
+        .nav::-webkit-scrollbar { height: 0; }
+
+        .nav-tab {
+            padding: 10px 20px;
+            border-radius: 12px;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .nav-tab:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .nav-tab.active { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); color: #fff; }
+
+        .refresh-btn {
+            padding: 10px 18px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .refresh-btn:hover { background: rgba(255,255,255,0.08); }
+
+        .content { flex: 1; display: flex; overflow: hidden; }
+        .page { display: none; flex: 1; overflow-y: auto; padding: 24px; padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+        .page.active { display: flex; flex-direction: column; }
+
+        .card {
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+
+        .card:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); transform: translateY(-2px); }
+        .card.clickable { cursor: pointer; }
+
+        h3 { font-size: 22px; font-weight: 700; margin-bottom: 20px; color: #fff; }
+        h4 { font-size: 18px; font-weight: 600; margin-bottom: 14px; color: rgba(255,255,255,0.9); }
+
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-input, textarea.form-input, select { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px 16px; color: #fff; font-size: 15px; font-family: inherit; transition: all 0.2s; }
+        .form-input:focus { outline: none; border-color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.05); }
+        .form-input::placeholder { color: rgba(255,255,255,0.3); }
+        textarea.form-input { resize: vertical; min-height: 100px; font-family: 'SF Mono', monospace; }
+
+        .code-input { font-family: 'SF Mono', monospace; font-size: 14px; }
+
+        .btn { padding: 14px 24px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-1px); }
+        .btn-primary { background: #fff; color: #000; border-color: #fff; }
+        .btn-primary:hover { background: rgba(255,255,255,0.9); }
+        .btn-sm { padding: 10px 16px; font-size: 13px; }
+
+        .toggle-btns { display: flex; gap: 8px; margin-bottom: 12px; }
+        .toggle-btn { padding: 8px 14px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .toggle-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .toggle-btn.active { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); color: #fff; }
+
+        .preview-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; min-height: 200px; max-height: 400px; overflow-y: auto; display: none; }
+        .preview-box.active { display: block; }
+
+        .fullscreen-btn { position: absolute; top: 12px; right: 12px; padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 13px; cursor: pointer; z-index: 10; }
+        .fullscreen-btn:hover { background: rgba(255,255,255,0.12); }
+
+        .fullscreen-modal { position: fixed; inset: 0; background: #000; z-index: 200; display: none; flex-direction: column; }
+        .fullscreen-modal.active { display: flex; }
+        .fullscreen-header { padding: 16px 20px; background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; }
+        .fullscreen-body { flex: 1; overflow-y: auto; padding: 24px; }
+
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-dot.running { background: #fff; animation: pulse 1.5s infinite; }
+        .status-dot.success { background: rgba(255,255,255,0.6); }
+        .status-dot.failure { background: rgba(255,255,255,0.3); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .badge { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); text-transform: uppercase; letter-spacing: 0.5px; }
+        .filter-badge { background: rgba(255,255,255,0.12); color: #fff; cursor: pointer; }
+        .filter-badge:hover { background: rgba(255,255,255,0.18); }
+
+        .thread-avatar { width: 48px; height: 48px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15); }
+        .thread-title { font-size: 20px; font-weight: 700; margin-bottom: 12px; line-height: 1.4; color: #fff; }
+        .thread-body { font-size: 16px; line-height: 1.6; color: rgba(255,255,255,0.6); margin-bottom: 16px; }
+
+        .actions-header, .logs-header { padding: 16px 20px; background: rgba(255,255,255,0.04); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; font-size: 16px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .actions-list { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; overflow: hidden; max-height: 400px; overflow-y: auto; margin-bottom: 20px; }
+        .action-item { padding: 18px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: all 0.2s; }
+        .action-item:hover, .action-item.selected { background: rgba(255,255,255,0.06); }
+        .action-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: #fff; }
+        .action-meta { font-size: 14px; color: rgba(255,255,255,0.5); }
+
+        .logs-viewer { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; max-height: 500px; }
+        .logs-content { flex: 1; overflow-y: auto; padding: 20px; font-family: 'SF Mono', 'Monaco', monospace; font-size: 13px; line-height: 1.8; background: rgba(0,0,0,0.3); }
+        .log-line { padding: 3px 0; white-space: pre-wrap; word-break: break-word; color: rgba(255,255,255,0.7); }
+        .log-line.error { color: rgba(255,255,255,0.9); font-weight: 500; }
+        .log-line.success { color: rgba(255,255,255,0.8); }
+        .log-line.info { color: rgba(255,255,255,0.85); }
+
+        .trace-item { display: flex; align-items: center; gap: 16px; cursor: pointer; }
+        .trace-info { flex: 1; min-width: 0; }
+        .trace-name { font-size: 17px; font-weight: 600; color: #fff; margin-bottom: 6px; }
+        .trace-meta { font-size: 14px; color: rgba(255,255,255,0.5); display: flex; gap: 12px; flex-wrap: wrap; }
+        .trace-stats-row { display: flex; gap: 10px; font-size: 13px; font-family: 'SF Mono', monospace; flex-wrap: wrap; }
+        .trace-stat { padding: 8px 12px; background: rgba(255,255,255,0.06); border-radius: 8px; white-space: nowrap; color: rgba(255,255,255,0.9); font-weight: 600; }
+
+        .input-container { 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            right: 0; 
+            padding: 16px 20px calc(20px + env(safe-area-inset-bottom)); 
+            padding-left: max(20px, env(safe-area-inset-left));
+            padding-right: max(20px, env(safe-area-inset-right));
+            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 50%, transparent 100%); 
+            backdrop-filter: blur(30px); 
+            z-index: 50; 
+        }
+        .input-wrapper { max-width: 900px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+        .input-field { flex: 1; background: rgba(255,255,255,0.06); backdrop-filter: blur(30px); border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 16px 20px; color: #fff; font-size: 16px; font-family: inherit; resize: none; min-height: 56px; max-height: 160px; }
+        .input-field:focus { outline: none; border-color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.08); }
+        .input-field::placeholder { color: rgba(255,255,255,0.3); }
+        .send-btn { width: 56px; height: 56px; border-radius: 16px; border: none; background: #fff; color: #000; cursor: pointer; font-size: 24px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all 0.3s; flex-shrink: 0; }
+        .send-btn:hover { transform: scale(1.05); box-shadow: 0 8px 32px rgba(255,255,255,0.3); }
+
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; text-align: center; }
+        .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
+        .empty-state h3 { font-size: 20px; font-weight: 600; color: rgba(255,255,255,0.8); margin-bottom: 8px; }
+        .empty-state p { font-size: 15px; color: rgba(255,255,255,0.4); }
+        .loading { display: flex; align-items: center; justify-content: center; padding: 60px; }
+        .spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .live-indicator { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; background: rgba(255,255,255,0.1); border-radius: 8px; font-size: 13px; font-weight: 600; color: #fff; }
+        .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: pulse 1.5s infinite; }
+
+        .toast { position: fixed; bottom: calc(90px + env(safe-area-inset-bottom)); right: 24px; padding: 14px 20px; background: rgba(255,255,255,0.1); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.6); z-index: 1001; font-size: 14px; font-weight: 500; color: #fff; transform: translateY(100px); opacity: 0; transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); z-index: 100; display: none; align-items: center; justify-content: center; padding: 24px; overflow-y: auto; }
+        .modal.active { display: flex; }
+        .modal-content { background: rgba(255,255,255,0.05); backdrop-filter: blur(30px); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; max-width: 900px; max-height: 90vh; width: 100%; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: space-between; }
+        .modal-title { font-size: 18px; font-weight: 700; color: #fff; }
+        .modal-close { width: 36px; height: 36px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.6); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .modal-close:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .modal-body { flex: 1; overflow-y: auto; padding: 24px; }
+
+        .markdown-body { font-size: 15px; line-height: 1.8; color: rgba(255,255,255,0.7); }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { color: #fff; margin-top: 1.5em; margin-bottom: 0.6em; font-weight: 600; }
+        .markdown-body code { background: rgba(255,255,255,0.08); padding: 3px 8px; border-radius: 6px; font-family: 'SF Mono', monospace; font-size: 14px; color: rgba(255,255,255,0.9); }
+        .markdown-body pre { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; overflow-x: auto; margin: 1em 0; }
+        .markdown-body pre code { background: transparent; padding: 0; }
+
+        .comment { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+        .comment-author { font-weight: 600; color: #fff; font-size: 14px; }
+        .comment-time { color: rgba(255,255,255,0.4); font-size: 13px; }
+
+        .chat-message { max-width: 80%; padding: 16px 20px; border-radius: 14px; font-size: 15px; line-height: 1.7; margin-bottom: 12px; }
+        .chat-message.user { align-self: flex-end; background: rgba(255,255,255,0.12); color: #fff; border-bottom-right-radius: 4px; }
+        .chat-message.assistant { align-self: flex-start; background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.8); border-bottom-left-radius: 4px; }
+        .chat-message.tool-call { align-self: flex-start; background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.6); font-family: 'SF Mono', monospace; font-size: 13px; }
+        .message-role { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; opacity: 0.5; }
+
+        .play-control { position: sticky; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: rgba(255,255,255,0.08); backdrop-filter: blur(30px); border: 1px solid rgba(255,255,255,0.15); border-radius: 50px; box-shadow: 0 12px 40px rgba(0,0,0,0.7); margin-top: 20px; width: fit-content; max-width: 90%; }
+        .play-btn { width: 48px; height: 48px; border-radius: 50%; border: 2px solid #fff; background: rgba(255,255,255,0.1); color: #fff; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .play-btn:hover { background: #fff; color: #000; }
+        .play-btn.playing { background: #fff; color: #000; }
+        .play-slider { width: 100%; -webkit-appearance: none; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; outline: none; cursor: pointer; }
+        .play-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #fff; border-radius: 50%; cursor: pointer; }
+        .play-time { display: flex; justify-content: space-between; font-size: 12px; font-family: 'SF Mono', monospace; color: rgba(255,255,255,0.6); margin-top: 6px; }
+
+        .summary-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 18px; margin-bottom: 18px; }
+        .summary-title { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+
+        /* Dashboard specific */
+        .project-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .project-stat { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 18px; text-align: center; transition: all 0.2s; }
+        .project-stat:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }
+        .project-stat-value { font-size: 32px; font-weight: 700; margin-bottom: 8px; color: #fff; }
+        .project-stat-label { font-size: 13px; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* GitHub Project Board */
+        .project-board { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 10px; }
+        .project-column { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; min-width: 300px; max-width: 350px; flex-shrink: 0; }
+        .project-column-header { font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.9); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .project-column-count { font-size: 13px; color: rgba(255,255,255,0.5); font-weight: 600; }
+        .project-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; }
+        .project-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+        .project-item-title { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 6px; line-height: 1.4; }
+        .project-item-meta { font-size: 12px; color: rgba(255,255,255,0.5); display: flex; gap: 8px; flex-wrap: wrap; }
+
+        /* Issues filter tabs */
+        .issue-filter-tabs { display: flex; gap: 10px; margin-bottom: 16px; padding: 0 4px; }
+        .issue-filter-tab { padding: 10px 18px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .issue-filter-tab:hover { background: rgba(255,255,255,0.08); color: #fff; }
+        .issue-filter-tab.active { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); color: #fff; }
+
+        /* Schedule specific */
+        .job-item {
+            padding: 18px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 1;
+        }
+
+        .job-item.disabled {
+            opacity: 0.4;
+        }
+
+        .job-item:hover, .job-item.selected {
+            background: rgba(255,255,255,0.06);
+        }
+
+        .job-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .job-cron {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+            font-family: 'SF Mono', monospace;
+        }
+
+        .job-detail {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 500px;
+        }
+
+        .job-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .job-detail-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* Provider-specific fields */
+        .provider-fields { display: none; }
+        .provider-fields.active { display: block; }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .nav { padding: 0 16px; padding-top: max(10px, env(safe-area-inset-top)); }
+            .page { padding: 20px; padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
+            .card { padding: 20px; margin-bottom: 20px; }
+            h3 { font-size: 24px; margin-bottom: 24px; }
+            h4 { font-size: 20px; }
+            .thread-title { font-size: 22px; }
+            .thread-body { font-size: 17px; }
+            .action-title { font-size: 17px; }
+            .action-meta { font-size: 15px; }
+            .trace-name { font-size: 18px; }
+            .trace-meta { font-size: 15px; }
+            .log-line { font-size: 14px; }
+            .input-field { font-size: 17px; padding: 18px 22px; }
+            .send-btn { width: 60px; height: 60px; font-size: 28px; }
+            .btn { padding: 16px 28px; font-size: 16px; }
+            .form-input { padding: 16px 18px; font-size: 16px; }
+            .form-label { font-size: 14px; }
+            .project-stat-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+            .project-column { min-width: 280px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <nav class="nav">
+            <button class="nav-tab active" data-page="dashboard" onclick="window.showPage('dashboard')">📊 Dashboard</button>
+            <button class="nav-tab" data-page="issues" onclick="window.showPage('issues')">📋 Issues</button>
+            <button class="nav-tab" data-page="actions" onclick="window.showPage('actions')">⚡ Actions</button>
+            <button class="nav-tab" data-page="traces" onclick="window.showPage('traces')">📈 Traces</button>
+            <button class="nav-tab" data-page="agent" onclick="window.showPage('agent')">🤖 Agent</button>
+            <button class="nav-tab" data-page="schedule" onclick="window.showPage('schedule')">📅 Schedule</button>
+            <button class="nav-tab" data-page="settings" onclick="window.showPage('settings')">⚙️</button>
+            <button class="refresh-btn" onclick="window.refreshCurrentPage()">↻</button>
+        </nav>
+
+        <div class="content">
+            <div class="page active" id="dashboardPage">
+                <h3>📊 Project Dashboard</h3>
+                <div class="project-stat-grid" id="projectStats"></div>
+                <h4 style="margin-top:20px;margin-bottom:14px;">🗂️ Project Board</h4>
+                <div class="project-board" id="projectBoard"></div>
+            </div>
+            
+            <div class="page" id="issuesPage">
+                <div class="issue-filter-tabs">
+                    <button class="issue-filter-tab active" data-filter="all" onclick="window.filterIssues('all')">All</button>
+                    <button class="issue-filter-tab" data-filter="open" onclick="window.filterIssues('open')">Open</button>
+                    <button class="issue-filter-tab" data-filter="closed" onclick="window.filterIssues('closed')">Closed</button>
+                </div>
+                <div id="issuesContainer"></div>
+            </div>
+            
+            <div class="page" id="actionsPage">
+                <div class="actions-header"><span>⚡ Actions</span><span id="issueFilterBadge"></span></div>
+                <div class="actions-list" id="actionsContainer"></div>
+                <div class="logs-viewer">
+                    <div class="logs-header"><span id="logsTitle">Select</span><span id="liveIndicator"></span></div>
+                    <div class="logs-content" id="logsContent"><div class="empty-state"><div class="empty-icon">📜</div><p>Select action</p></div></div>
+                </div>
+            </div>
+            
+            <div class="page" id="tracesPage"><div id="tracesContainer"></div></div>
+            
+            <div class="page" id="agentPage">
+                <h3>🤖 Agent</h3>
+                <div class="card" style="position:relative;">
+                    <h4>System Prompt</h4>
+                    <button class="fullscreen-btn" onclick="window.openFullscreenPrompt()">⛶ Fullscreen</button>
+                    <div class="toggle-btns">
+                        <button class="toggle-btn active" id="editPromptBtn" onclick="window.togglePromptView('edit')">✏️ Edit</button>
+                        <button class="toggle-btn" id="previewPromptBtn" onclick="window.togglePromptView('preview')">👁 Preview</button>
+                    </div>
+                    <textarea class="form-input" id="systemPromptInput" rows="6" style="display:block;"></textarea>
+                    <div class="preview-box markdown-body" id="systemPromptPreview"></div>
+                    <button class="btn btn-primary" onclick="window.saveSystemPrompt()" style="margin-top:12px;width:100%;">Save</button>
+                </div>
+                <div class="card">
+                    <h4>Model</h4>
+                    <div class="form-group">
+                        <label class="form-label">Provider</label>
+                        <select class="form-input" id="agentProvider" onchange="window.updateProviderFields()">
+                            <option value="bedrock">Amazon Bedrock</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="gemini">Gemini</option>
+                            <option value="cohere">Cohere</option>
+                            <option value="mistral">Mistral</option>
+                            <option value="writer">Writer</option>
+                            <option value="litellm">LiteLLM</option>
+                            <option value="llamaapi">LlamaAPI</option>
+                            <option value="ollama">Ollama</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Provider-specific API Key fields -->
+                    <div id="bedrockFields" class="provider-fields">
+                        <div class="form-group">
+                            <label class="form-label">AWS Bearer Token</label>
+                            <input type="password" class="form-input" id="awsBearerToken">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">AWS Role ARN</label>
+                            <input class="form-input" id="awsRoleArn">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">AWS Region</label>
+                            <input class="form-input" id="awsRegion" placeholder="us-west-2">
+                        </div>
+                    </div>
+                    
+                    <div id="anthropicFields" class="provider-fields">
+                        <div class="form-group">
+                            <label class="form-label">Anthropic API Key</label>
+                            <input type="password" class="form-input" id="anthropicApiKey">
+                        </div>
+                    </div>
+                    
+                    <div id="openaiFields" class="provider-fields">
+                        <div class="form-group">
+                            <label class="form-label">OpenAI API Key</label>
+                            <input type="password" class="form-input" id="openaiApiKey">
+                        </div>
+                    </div>
+                    
+                    <div id="geminiFields" class="provider-fields">
+                        <div class="form-group">
+                            <label class="form-label">Google API Key</label>
+                            <input type="password" class="form-input" id="googleApiKey">
+                        </div>
+                    </div>
+                    
+                    <div id="cohereFields" class="provider-fields">
+                        <div class="form-group">
+                            <label class="form-label">Cohere API Key</label>
+                            <input type="password" class="form-input" id="cohereApiKey">
+                        </div>
+                    </div>
+                    
+                    <div id="mistralFields" class="provider-fields">
+                        <div class="form-group">
+                            <label class="form-label">Mistral API Key</label>
+                            <input type="password" class="form-input" id="mistralApiKey">
+                        </div>
+                    </div>
+                    
+                    <div id="writerFields" class="provider-fields">
+                        <div class="form-group">
+                            <label class="form-label">Writer API Key</label>
+                            <input type="password" class="form-input" id="writerApiKey">
+                        </div>
+                    </div>
+                    
+                    <div id="litellmFields" class="provider-fields">
+                        <div class="form-group">
+                            <label class="form-label">LiteLLM API Key</label>
+                            <input type="password" class="form-input" id="litellmApiKey">
+                        </div>
+                    </div>
+                    
+                    <div id="llamaapiFields" class="provider-fields">
+                        <div class="form-group">
+                            <label class="form-label">LlamaAPI API Key</label>
+                            <input type="password" class="form-input" id="llamaapiApiKey">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Model ID</label>
+                        <input class="form-input" id="agentModel">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Max Tokens</label>
+                        <input type="number" class="form-input" id="agentMaxTokens">
+                    </div>
+                </div>
+                <div class="card">
+                    <h4>Tools</h4>
+                    <textarea class="form-input code-input" id="agentTools" rows="3" oninput="window.highlightTools(this)"></textarea>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:8px;">Format: package:tool1,tool2;package2:tool3</div>
+                </div>
+                <div class="card">
+                    <h4>Knowledge Base</h4>
+                    <div class="form-group">
+                        <label class="form-label">KB ID</label>
+                        <input class="form-input" id="agentKbId" placeholder="WKIOUHBGCR">
+                    </div>
+                </div>
+                <div class="card">
+                    <h4>MCP Servers</h4>
+                    <textarea class="form-input code-input" id="agentMcpServers" rows="4"></textarea>
+                    <button class="btn btn-sm" onclick="window.formatJSON('agentMcpServers')" style="margin-top:8px;">Format JSON</button>
+                </div>
+                <div class="card">
+                    <h4>Additional Request Fields</h4>
+                    <textarea class="form-input code-input" id="agentAdditionalFields" rows="3" placeholder='{"anthropic_beta":["interleaved-thinking"]}'></textarea>
+                    <button class="btn btn-sm" onclick="window.formatJSON('agentAdditionalFields')" style="margin-top:8px;">Format JSON</button>
+                </div>
+                <button class="btn btn-primary" onclick="window.saveAgentConfig()" style="width:100%;">Save All</button>
+            </div>
+            
+            <div class="page" id="schedulePage">
+                <h3>📅 Schedule</h3>
+                <div class="actions-list" style="margin-bottom:16px;">
+                    <div id="jobsList"></div>
+                </div>
+                <div class="job-detail" id="jobDetailContainer">
+                    <div class="empty-state">
+                        <div class="empty-icon">📅</div>
+                        <h3>Select a Job</h3>
+                        <p>Click on a job to edit, or add a new one below</p>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="window.showAddJobForm()" style="margin-top:12px;width:100%;">+ Add Job</button>
+            </div>
+            
+            <div class="page" id="settingsPage">
+                <h3>⚙️ Settings</h3>
+                <div class="card">
+                    <h4>GitHub</h4>
+                    <div class="form-group">
+                        <label class="form-label">Token</label>
+                        <input type="password" class="form-input" id="settingsGhToken">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Repository</label>
+                        <input class="form-input" id="settingsGhRepo" placeholder="owner/repo">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Workflow</label>
+                        <input class="form-input" id="settingsGhWorkflow" placeholder="agent.yml">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Project ID</label>
+                        <input class="form-input" id="settingsGhProjectId" placeholder="PVT_kwHOAIyVLs4BMSWO">
+                    </div>
+                    <button class="btn btn-primary" onclick="window.saveGitHubSettings()">Save</button>
+                </div>
+                <div class="card">
+                    <h4>Langfuse</h4>
+                    <div class="form-group">
+                        <label class="form-label">Host</label>
+                        <input class="form-input" id="settingsLfHost">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Public Key</label>
+                        <input class="form-input" id="settingsLfPublicKey">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Secret Key</label>
+                        <input type="password" class="form-input" id="settingsLfSecretKey">
+                    </div>
+                    <button class="btn btn-primary" onclick="window.saveLangfuseSettings()">Save</button>
+                </div>
+                <div class="card">
+                    <h4>Import from Link</h4>
+                    <div class="form-group">
+                        <label class="form-label">Share Link</label>
+                        <textarea class="form-input" id="importLinkInput" rows="3" placeholder="Paste share link here..."></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="window.importFromLink()" style="width:100%;">Import</button>
+                </div>
+                <div class="card">
+                    <h4>Share Config</h4>
+                    <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:14px;">
+                        <input type="checkbox" id="shareEncrypted" checked> 🔐 Encrypt
+                    </label>
+                    <input type="password" class="form-input" id="sharePassword" placeholder="Password" style="margin-bottom:12px;">
+                    <button class="btn btn-primary" onclick="window.generateShareLink()" style="width:100%;">Generate Link</button>
+                    <div id="shareLinkOutput" style="display:none;margin-top:12px;">
+                        <textarea class="form-input" id="shareableLinkInput" rows="3" readonly></textarea>
+                        <button class="btn btn-sm" onclick="window.copyLink()" style="width:100%;margin-top:8px;">Copy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <div class="input-wrapper">
+                <textarea class="input-field" id="issueInput" placeholder="Create an issue..." rows="1" oninput="window.autoResize(this)"></textarea>
+                <button class="send-btn" onclick="window.createIssue()">→</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="issueModal" onclick="if(event.target===this) window.closeIssueModal()">
+        <div class="modal-content">
+            <div class="modal-header"><div class="modal-title" id="issueModalTitle"></div><button class="modal-close" onclick="window.closeIssueModal()">✕</button></div>
+            <div class="modal-body" id="issueModalBody"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="traceModal" onclick="if(event.target===this) window.closeTraceModal()">
+        <div class="modal-content">
+            <div class="modal-header"><div class="modal-title" id="traceModalTitle"></div><button class="modal-close" onclick="window.closeTraceModal()">✕</button></div>
+            <div class="modal-body" id="traceModalBody"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="scheduleModal" onclick="if(event.target===this) window.closeScheduleModal()">
+        <div class="modal-content">
+            <div class="modal-header"><div class="modal-title" id="scheduleModalTitle">Add Job</div><button class="modal-close" onclick="window.closeScheduleModal()">✕</button></div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Job ID</label>
+                    <input class="form-input" id="jobId">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Cron Expression</label>
+                    <input class="form-input" id="jobCron" placeholder="0 9 * * *">
+                    <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:6px;">Format: minute hour day month weekday</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Prompt</label>
+                    <textarea class="form-input" id="jobPrompt" rows="4"></textarea>
+                </div>
+                <button class="btn btn-primary" onclick="window.saveJob()" style="width:100%;">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="fullscreen-modal" id="fullscreenPromptModal">
+        <div class="fullscreen-header">
+            <h3 style="margin:0;">System Prompt</h3>
+            <button class="btn btn-sm" onclick="window.closeFullscreenPrompt()">✕ Close</button>
+        </div>
+        <div class="fullscreen-body markdown-body" id="fullscreenPromptContent"></div>
+    </div>
+
+    <script>
+        (function() {
+            mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+            marked.setOptions({ breaks: true, gfm: true });
+
+            let config = {
+                github: { 
+                    token: localStorage.getItem('gh_token') || '', 
+                    repo: localStorage.getItem('gh_repo') || 'cagataycali/strands-coder', 
+                    workflow: localStorage.getItem('gh_workflow') || 'agent.yml',
+                    projectId: localStorage.getItem('gh_project_id') || 'PVT_kwHOAIyVLs4BMSWO'
+                },
+                langfuse: { host: localStorage.getItem('lf_host') || 'https://cloud.langfuse.com', publicKey: localStorage.getItem('lf_public_key') || '', secretKey: localStorage.getItem('lf_secret_key') || '' }
+            };
+
+            let issues = [], actions = [], traces = [], scheduleData = { jobs: {} }, projectData = null;
+            let currentAction = null, currentIssue = null, currentTrace = null, selectedJob = null;
+            let streamingInterval = null, filteredIssueNum = null;
+            let conversationMessages = [], playbackInterval = null, isPlaying = false;
+            let traceStartTime = 0, traceDuration = 0;
+            let pagesLoaded = {};
+            let issueFilterState = 'all';
+
+            const PROVIDER_API_KEY_MAP = {
+                'anthropic': 'ANTHROPIC_API_KEY',
+                'openai': 'OPENAI_API_KEY',
+                'gemini': 'GOOGLE_API_KEY',
+                'cohere': 'COHERE_API_KEY',
+                'mistral': 'MISTRAL_API_KEY',
+                'writer': 'WRITER_API_KEY',
+                'litellm': 'LITELLM_API_KEY',
+                'llamaapi': 'LLAMAAPI_API_KEY',
+                'bedrock': 'AWS_BEARER_TOKEN_BEDROCK'
+            };
+
+            document.addEventListener('DOMContentLoaded', () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('token')) config.github.token = urlParams.get('token');
+                if (urlParams.get('repo')) config.github.repo = urlParams.get('repo');
+                if (urlParams.get('cfg')) importConfig(urlParams.get('cfg'));
+                
+                if (config.github.token) localStorage.setItem('gh_token', config.github.token);
+                if (config.github.repo) localStorage.setItem('gh_repo', config.github.repo);
+
+                loadSettingsForm();
+
+                const hash = window.location.hash.slice(1);
+                if (hash && ['dashboard', 'issues', 'actions', 'traces', 'agent', 'schedule', 'settings'].includes(hash)) {
+                    window.showPage(hash);
+                } else if (!config.github.token) {
+                    window.showPage('settings');
+                    showToast('Configure GitHub');
+                } else {
+                    loadDashboard();
+                    pagesLoaded.dashboard = true;
+                }
+
+                if (urlParams.get('issue')) window.openIssueDetail(parseInt(urlParams.get('issue')));
+                if (urlParams.get('trace')) setTimeout(() => window.openTraceDetail(urlParams.get('trace')), 500);
+            });
+
+            window.showPage = function(page) {
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                document.getElementById(page + 'Page').classList.add('active');
+                document.querySelector(`[data-page="${page}"]`).classList.add('active');
+                window.location.hash = page;
+
+                if (page === 'dashboard' && !pagesLoaded.dashboard) { loadDashboard(); pagesLoaded.dashboard = true; }
+                if (page === 'issues' && !pagesLoaded.issues) { loadIssues(); pagesLoaded.issues = true; }
+                if (page === 'actions' && !pagesLoaded.actions) { loadActions(); pagesLoaded.actions = true; }
+                if (page === 'traces' && !pagesLoaded.traces) { loadTraces(); pagesLoaded.traces = true; }
+                if (page === 'agent' && !pagesLoaded.agent) { loadAgentConfig(); pagesLoaded.agent = true; }
+                if (page === 'schedule' && !pagesLoaded.schedule) { loadSchedule(); pagesLoaded.schedule = true; }
+                if (page === 'settings') loadSettingsForm();
+            };
+
+            window.refreshCurrentPage = function() {
+                const hash = window.location.hash.slice(1) || 'dashboard';
+                pagesLoaded[hash] = false;
+                window.showPage(hash);
+            };
+
+            // ============ ENCRYPTION ============
+            async function deriveKey(password, salt) {
+                const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+                return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+            }
+
+            async function encryptData(plaintext, password) {
+                const salt = crypto.getRandomValues(new Uint8Array(16));
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                const key = await deriveKey(password, salt);
+                const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plaintext));
+                const combined = new Uint8Array(salt.length + iv.length + ciphertext.byteLength);
+                combined.set(salt, 0);
+                combined.set(iv, salt.length);
+                combined.set(new Uint8Array(ciphertext), salt.length + iv.length);
+                return btoa(String.fromCharCode(...combined));
+            }
+
+            async function decryptData(base64Data, password) {
+                const combined = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+                const key = await deriveKey(password, combined.slice(0, 16));
+                const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: combined.slice(16, 28) }, key, combined.slice(28));
+                return new TextDecoder().decode(decrypted);
+            }
+
+            window.generateShareLink = async function() {
+                const isEncrypted = document.getElementById('shareEncrypted').checked;
+                const password = document.getElementById('sharePassword')?.value;
+                if (isEncrypted && (!password || password.length < 4)) return showToast('Password min 4 chars');
+
+                const data = { v: 1, gh: { token: config.github.token, repo: config.github.repo, wf: config.github.workflow, pid: config.github.projectId }, lf: { host: config.langfuse.host, pk: config.langfuse.publicKey, sk: config.langfuse.secretKey } };
+                let encoded;
+                if (isEncrypted) {
+                    try { encoded = await encryptData(JSON.stringify(data), password); } catch { return showToast('Encryption failed'); }
+                } else { encoded = btoa(JSON.stringify(data)); }
+                
+                const url = new URL(window.location.href);
+                url.search = '';
+                url.hash = '';
+                url.searchParams.set('cfg', encoded);
+                if (isEncrypted) url.searchParams.set('enc', '1');
+                
+                document.getElementById('shareLinkOutput').style.display = 'block';
+                document.getElementById('shareableLinkInput').value = url.toString();
+                showToast('Generated!');
+            };
+
+            window.copyLink = function() {
+                const input = document.getElementById('shareableLinkInput');
+                input.select();
+                navigator.clipboard.writeText(input.value).then(() => showToast('Copied!'));
+            };
+
+            window.importFromLink = async function() {
+                const linkText = document.getElementById('importLinkInput').value.trim();
+                if (!linkText) return showToast('Paste link');
+                
+                try {
+                    const url = new URL(linkText);
+                    const cfg = url.searchParams.get('cfg');
+                    const isEncrypted = url.searchParams.get('enc') === '1';
+                    
+                    if (!cfg) return showToast('Invalid link');
+                    
+                    await importConfig(cfg, isEncrypted);
+                    document.getElementById('importLinkInput').value = '';
+                } catch (e) {
+                    showToast('Invalid link format');
+                }
+            };
+
+            async function importConfig(encoded, isEncrypted = false) {
+                try {
+                    let jsonStr;
+                    if (isEncrypted) {
+                        const password = prompt('Enter password:');
+                        if (!password) return;
+                        jsonStr = await decryptData(encoded, password);
+                    } else { jsonStr = atob(encoded); }
+                    
+                    const data = JSON.parse(jsonStr);
+                    if (data.gh) {
+                        if (data.gh.token) { config.github.token = data.gh.token; localStorage.setItem('gh_token', data.gh.token); }
+                        if (data.gh.repo) { config.github.repo = data.gh.repo; localStorage.setItem('gh_repo', data.gh.repo); }
+                        if (data.gh.wf) { config.github.workflow = data.gh.wf; localStorage.setItem('gh_workflow', data.gh.wf); }
+                        if (data.gh.pid) { config.github.projectId = data.gh.pid; localStorage.setItem('gh_project_id', data.gh.pid); }
+                    }
+                    if (data.lf) {
+                        if (data.lf.host) { config.langfuse.host = data.lf.host; localStorage.setItem('lf_host', data.lf.host); }
+                        if (data.lf.pk) { config.langfuse.publicKey = data.lf.pk; localStorage.setItem('lf_public_key', data.lf.pk); }
+                        if (data.lf.sk) { config.langfuse.secretKey = data.lf.sk; localStorage.setItem('lf_secret_key', data.lf.sk); }
+                    }
+                    
+                    loadSettingsForm();
+                    showToast('Imported!');
+                    pagesLoaded = {};
+                    window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+                } catch (e) {
+                    showToast('Import failed: ' + e.message);
+                }
+            }
+
+            function loadSettingsForm() {
+                document.getElementById('settingsGhToken').value = config.github.token;
+                document.getElementById('settingsGhRepo').value = config.github.repo;
+                document.getElementById('settingsGhWorkflow').value = config.github.workflow;
+                document.getElementById('settingsGhProjectId').value = config.github.projectId;
+                document.getElementById('settingsLfHost').value = config.langfuse.host;
+                document.getElementById('settingsLfPublicKey').value = config.langfuse.publicKey;
+                document.getElementById('settingsLfSecretKey').value = config.langfuse.secretKey;
+            }
+
+            window.saveGitHubSettings = function() {
+                config.github.token = document.getElementById('settingsGhToken').value.trim();
+                config.github.repo = document.getElementById('settingsGhRepo').value.trim();
+                config.github.workflow = document.getElementById('settingsGhWorkflow').value.trim();
+                config.github.projectId = document.getElementById('settingsGhProjectId').value.trim();
+                localStorage.setItem('gh_token', config.github.token);
+                localStorage.setItem('gh_repo', config.github.repo);
+                localStorage.setItem('gh_workflow', config.github.workflow);
+                localStorage.setItem('gh_project_id', config.github.projectId);
+                showToast('Saved!');
+                pagesLoaded = {};
+            };
+
+            window.saveLangfuseSettings = function() {
+                config.langfuse.host = document.getElementById('settingsLfHost').value.trim();
+                config.langfuse.publicKey = document.getElementById('settingsLfPublicKey').value.trim();
+                config.langfuse.secretKey = document.getElementById('settingsLfSecretKey').value.trim();
+                localStorage.setItem('lf_host', config.langfuse.host);
+                localStorage.setItem('lf_public_key', config.langfuse.publicKey);
+                localStorage.setItem('lf_secret_key', config.langfuse.secretKey);
+                showToast('Saved!');
+            };
+
+            // ============ DASHBOARD ============
+            async function loadDashboard() {
+                document.getElementById('projectStats').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+                document.getElementById('projectBoard').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+                
+                try {
+                    await Promise.all([
+                        loadIssues(true),
+                        loadActions(true),
+                        loadTraces(true),
+                        loadProjectBoard()
+                    ]);
+                    
+                    renderDashboard();
+                } catch (e) {
+                    document.getElementById('projectStats').innerHTML = `<div class="empty-state"><p>${e.message}</p></div>`;
+                }
+            }
+
+            async function loadProjectBoard() {
+                if (!config.github.projectId) {
+                    document.getElementById('projectBoard').innerHTML = '<div class="empty-state" style="padding:40px;"><div class="empty-icon">🗂️</div><p>Configure Project ID in Settings</p></div>';
+                    return;
+                }
+
+                try {
+                    const query = `
+                        query($projectId: ID!) {
+                            node(id: $projectId) {
+                                ... on ProjectV2 {
+                                    title
+                                    fields(first: 20) {
+                                        nodes {
+                                            ... on ProjectV2SingleSelectField {
+                                                id
+                                                name
+                                                options {
+                                                    id
+                                                    name
+                                                }
+                                            }
+                                        }
+                                    }
+                                    items(first: 100) {
+                                        nodes {
+                                            id
+                                            fieldValues(first: 20) {
+                                                nodes {
+                                                    ... on ProjectV2ItemFieldSingleSelectValue {
+                                                        name
+                                                        field {
+                                                            ... on ProjectV2SingleSelectField {
+                                                                name
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            content {
+                                                ... on Issue {
+                                                    number
+                                                    title
+                                                    url
+                                                    state
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    `;
+
+                    const res = await fetch('https://api.github.com/graphql', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${config.github.token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ 
+                            query, 
+                            variables: { projectId: config.github.projectId } 
+                        })
+                    });
+
+                    if (!res.ok) throw new Error(`GraphQL API: ${res.status}`);
+                    
+                    const data = await res.json();
+                    
+                    if (data.errors) {
+                        console.error('GraphQL errors:', data.errors);
+                        throw new Error(data.errors[0].message);
+                    }
+
+                    projectData = data.data.node;
+                    renderProjectBoard();
+                } catch (e) {
+                    console.error('Project board error:', e);
+                    document.getElementById('projectBoard').innerHTML = `<div class="empty-state" style="padding:40px;"><div class="empty-icon">❌</div><p>Error loading project: ${e.message}</p></div>`;
+                }
+            }
+
+            function renderProjectBoard() {
+                const container = document.getElementById('projectBoard');
+                
+                if (!projectData || !projectData.items) {
+                    container.innerHTML = '<div class="empty-state" style="padding:40px;"><p>No project data</p></div>';
+                    return;
+                }
+
+                const statusField = projectData.fields.nodes.find(f => f.name === 'Status');
+                if (!statusField) {
+                    container.innerHTML = '<div class="empty-state" style="padding:40px;"><p>No Status field found</p></div>';
+                    return;
+                }
+
+                const itemsByStatus = {};
+                statusField.options.forEach(opt => {
+                    itemsByStatus[opt.name] = [];
+                });
+
+                projectData.items.nodes.forEach(item => {
+                    if (!item.content || !item.content.number) return;
+                    
+                    const statusValue = item.fieldValues.nodes.find(fv => 
+                        fv.field && fv.field.name === 'Status'
+                    );
+                    
+                    const status = statusValue ? statusValue.name : 'No Status';
+                    if (!itemsByStatus[status]) itemsByStatus[status] = [];
+                    itemsByStatus[status].push(item);
+                });
+
+                // Extract repo info from URLs
+                projectData.items.nodes.forEach(item => {
+                    if (!item.content || !item.content.number) return;
+                    const urlMatch = item.content.url.match(/github\.com\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
+                    if (urlMatch) {
+                        item.content.fullRepo = `${urlMatch[1]}/${urlMatch[2]}`;
+                    }
+                });
+
+                container.innerHTML = Object.keys(itemsByStatus).map(status => {
+                    const items = itemsByStatus[status];
+                    if (items.length === 0) return '';
+                    
+                    return `
+                        <div class="project-column">
+                            <div class="project-column-header">
+                                <span>${escapeHtml(status)}</span>
+                                <span class="project-column-count">${items.length}</span>
+                            </div>
+                            ${items.map(item => {
+                                const issue = item.content;
+                                const repoLabel = issue.fullRepo && issue.fullRepo !== config.github.repo ? `<span style="font-size:10px;color:rgba(255,255,255,0.4);display:block;margin-top:4px;">${issue.fullRepo}</span>` : '';
+                                return `
+                                    <div class="project-item" onclick="window.openIssueDetailFromProject(${issue.number}, '${issue.fullRepo || config.github.repo}');">
+                                        <div class="project-item-title">#${issue.number} ${escapeHtml(issue.title)}</div>
+                                        <div class="project-item-meta">
+                                            <span class="badge" style="font-size:11px;padding:4px 8px;">${issue.state === 'OPEN' ? '● Open' : '○ Closed'}</span>
+                                        </div>
+                                        ${repoLabel}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                }).filter(Boolean).join('');
+            }
+
+            function filterIssuesFromStat(state) {
+                issueFilterState = state;
+                window.showPage('issues');
+                if (!pagesLoaded.issues) {
+                    loadIssues();
+                    pagesLoaded.issues = true;
+                } else {
+                    renderIssues();
+                }
+            }
+
+            function renderDashboard() {
+                const openIssues = issues.filter(i => i.state === 'open').length;
+                const closedIssues = issues.filter(i => i.state === 'closed').length;
+                const runningActions = actions.filter(a => a.status === 'in_progress' || a.status === 'queued').length;
+                const successActions = actions.filter(a => a.conclusion === 'success').length;
+                const failedActions = actions.filter(a => a.conclusion === 'failure').length;
+                
+                document.getElementById('projectStats').innerHTML = `
+                    <div class="project-stat" onclick="filterIssuesFromStat('open')">
+                        <div class="project-stat-value">${openIssues}</div>
+                        <div class="project-stat-label">Open Issues</div>
+                    </div>
+                    <div class="project-stat" onclick="filterIssuesFromStat('closed')">
+                        <div class="project-stat-value">${closedIssues}</div>
+                        <div class="project-stat-label">Closed Issues</div>
+                    </div>
+                    <div class="project-stat">
+                        <div class="project-stat-value">${runningActions}</div>
+                        <div class="project-stat-label">Running</div>
+                    </div>
+                    <div class="project-stat">
+                        <div class="project-stat-value">${successActions}</div>
+                        <div class="project-stat-label">Success</div>
+                    </div>
+                    <div class="project-stat">
+                        <div class="project-stat-value">${failedActions}</div>
+                        <div class="project-stat-label">Failed</div>
+                    </div>
+                    <div class="project-stat">
+                        <div class="project-stat-value">${traces.length}</div>
+                        <div class="project-stat-label">Traces</div>
+                    </div>
+                `;
+            }
+
+            // ============ AGENT ============
+            window.updateProviderFields = function() {
+                document.querySelectorAll('.provider-fields').forEach(el => el.classList.remove('active'));
+                const provider = document.getElementById('agentProvider').value;
+                const fieldsId = provider + 'Fields';
+                const fieldsEl = document.getElementById(fieldsId);
+                if (fieldsEl) fieldsEl.classList.add('active');
+            };
+
+            async function loadAgentConfig() {
+                try {
+                    const varsRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/variables?per_page=100`, { headers: { 'Authorization': `Bearer ${config.github.token}` }});
+                    const secretsRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/secrets`, { headers: { 'Authorization': `Bearer ${config.github.token}` }});
+                    
+                    if (!varsRes.ok) throw new Error('Failed to load variables');
+                    
+                    const vars = {};
+                    ((await varsRes.json()).variables || []).forEach(v => vars[v.name] = v.value);
+                    
+                    const secrets = {};
+                    if (secretsRes.ok) {
+                        ((await secretsRes.json()).secrets || []).forEach(s => secrets[s.name] = true);
+                    }
+                    
+                    document.getElementById('systemPromptInput').value = vars.SYSTEM_PROMPT || '';
+                    document.getElementById('agentProvider').value = vars.STRANDS_PROVIDER || 'bedrock';
+                    document.getElementById('agentModel').value = vars.STRANDS_MODEL_ID || '';
+                    document.getElementById('agentMaxTokens').value = vars.STRANDS_MAX_TOKENS || '60000';
+                    document.getElementById('agentTools').value = vars.STRANDS_TOOLS || '';
+                    document.getElementById('agentKbId').value = vars.STRANDS_KNOWLEDGE_BASE_ID || '';
+                    document.getElementById('agentMcpServers').value = vars.MCP_SERVERS || '';
+                    document.getElementById('agentAdditionalFields').value = vars.STRANDS_ADDITIONAL_REQUEST_FIELDS || '';
+                    
+                    if (document.getElementById('awsRoleArn')) document.getElementById('awsRoleArn').value = vars.AWS_ROLE_ARN || '';
+                    if (document.getElementById('awsRegion')) document.getElementById('awsRegion').value = vars.AWS_REGION || 'us-west-2';
+                    
+                    window.updateProviderFields();
+                    
+                    Object.keys(PROVIDER_API_KEY_MAP).forEach(provider => {
+                        const secretName = PROVIDER_API_KEY_MAP[provider];
+                        const inputId = provider === 'bedrock' ? 'awsBearerToken' : provider + 'ApiKey';
+                        const input = document.getElementById(inputId);
+                        if (input && secrets[secretName]) {
+                            input.placeholder = '••••••••••••••••';
+                        }
+                    });
+                    
+                    showToast('Loaded!');
+                } catch (e) {
+                    showToast('Error: ' + e.message);
+                }
+            }
+
+            window.saveSystemPrompt = async function() {
+                try {
+                    await updateVar('SYSTEM_PROMPT', document.getElementById('systemPromptInput').value);
+                    showToast('Saved!');
+                } catch (e) {
+                    showToast('Error');
+                }
+            };
+
+            window.saveAgentConfig = async function() {
+                const provider = document.getElementById('agentProvider').value;
+                
+                const updates = [
+                    { name: 'STRANDS_PROVIDER', value: document.getElementById('agentProvider').value },
+                    { name: 'STRANDS_MODEL_ID', value: document.getElementById('agentModel').value },
+                    { name: 'STRANDS_MAX_TOKENS', value: document.getElementById('agentMaxTokens').value },
+                    { name: 'STRANDS_TOOLS', value: document.getElementById('agentTools').value },
+                    { name: 'STRANDS_KNOWLEDGE_BASE_ID', value: document.getElementById('agentKbId').value },
+                    { name: 'MCP_SERVERS', value: document.getElementById('agentMcpServers').value },
+                    { name: 'STRANDS_ADDITIONAL_REQUEST_FIELDS', value: document.getElementById('agentAdditionalFields').value }
+                ];
+                
+                if (provider === 'bedrock') {
+                    const awsRoleArn = document.getElementById('awsRoleArn')?.value;
+                    const awsRegion = document.getElementById('awsRegion')?.value;
+                    if (awsRoleArn) updates.push({ name: 'AWS_ROLE_ARN', value: awsRoleArn, isSecret: true });
+                    if (awsRegion) updates.push({ name: 'AWS_REGION', value: awsRegion, isSecret: true });
+                }
+                
+                const apiKeyInputId = provider === 'bedrock' ? 'awsBearerToken' : provider + 'ApiKey';
+                const apiKeyInput = document.getElementById(apiKeyInputId);
+                if (apiKeyInput && apiKeyInput.value && apiKeyInput.value !== '••••••••••••••••') {
+                    const secretName = PROVIDER_API_KEY_MAP[provider];
+                    updates.push({ name: secretName, value: apiKeyInput.value, isSecret: true });
+                }
+                
+                try {
+                    for (const { name, value, isSecret } of updates) {
+                        if (value) {
+                            if (isSecret) {
+                                await updateSecret(name, value);
+                            } else {
+                                await updateVar(name, value);
+                            }
+                        }
+                    }
+                    showToast('Saved!');
+                } catch (e) {
+                    showToast('Error');
+                }
+            };
+
+            async function updateVar(name, value) {
+                const check = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/variables/${name}`, { headers: { 'Authorization': `Bearer ${config.github.token}` }});
+                const method = check.ok ? 'PATCH' : 'POST';
+                const url = check.ok ? `https://api.github.com/repos/${config.github.repo}/actions/variables/${name}` : `https://api.github.com/repos/${config.github.repo}/actions/variables`;
+                const body = check.ok ? { value } : { name, value };
+                const res = await fetch(url, { method, headers: { 'Authorization': `Bearer ${config.github.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                if (!res.ok && res.status !== 204) throw new Error('Failed');
+            }
+
+            async function updateSecret(name, value) {
+                const keyRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/secrets/public-key`, { 
+                    headers: { 'Authorization': `Bearer ${config.github.token}` }
+                });
+                if (!keyRes.ok) throw new Error('Failed to get public key');
+                const { key, key_id } = await keyRes.json();
+                
+                const res = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/secrets/${name}`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Authorization': `Bearer ${config.github.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ encrypted_value: btoa(value), key_id })
+                });
+                
+                if (!res.ok && res.status !== 204) {
+                    console.warn('Secret update requires proper encryption - storing as variable instead');
+                    await updateVar(name, value);
+                }
+            }
+
+            window.filterIssues = function(filter) {
+                issueFilterState = filter;
+                document.querySelectorAll('.issue-filter-tab').forEach(t => t.classList.remove('active'));
+                document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+                renderIssues();
+            };
+
+            async function loadIssues(silent = false) {
+                const container = document.getElementById('issuesContainer');
+                if (!silent) container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+                try {
+                    let allIssues = [];
+                    let page = 1;
+                    let hasMore = true;
+                    
+                    while (hasMore) {
+                        const res = await fetch(`https://api.github.com/repos/${config.github.repo}/issues?state=all&per_page=100&page=${page}`, { 
+                            headers: { 'Authorization': `Bearer ${config.github.token}` }
+                        });
+                        if (!res.ok) throw new Error(`API: ${res.status}`);
+                        
+                        const pageIssues = (await res.json()).filter(i => !i.pull_request);
+                        allIssues = allIssues.concat(pageIssues);
+                        
+                        // Check if there are more pages
+                        hasMore = pageIssues.length === 100;
+                        page++;
+                    }
+                    
+                    issues = allIssues;
+                    if (!silent) {
+                        loadActions(true);
+                        loadTraces(true);
+                        renderIssues();
+                    }
+                } catch (e) {
+                    if (!silent) container.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><h3>Error</h3><p>${e.message}</p><button class="btn" onclick="window.showPage('settings')" style="margin-top:16px;">Settings</button></div>`;
+                }
+            }
+
+            function renderIssues() {
+                const container = document.getElementById('issuesContainer');
+                
+                let displayIssues = issues;
+                if (issueFilterState === 'open') displayIssues = issues.filter(i => i.state === 'open');
+                else if (issueFilterState === 'closed') displayIssues = issues.filter(i => i.state === 'closed');
+                
+                if (!displayIssues.length) return container.innerHTML = `<div class="empty-state"><div class="empty-icon">📝</div><h3>No ${issueFilterState === 'all' ? '' : issueFilterState} Issues</h3></div>`;
+
+                container.innerHTML = displayIssues.map(issue => {
+                    const actionStatus = getActionStatus(issue.number);
+                    const traceStatus = getTraceStatus(issue.number);
+                    return `
+                        <div class="card clickable" onclick="window.openIssueDetail(${issue.number}); updateUrl('issue', ${issue.number});">
+                            <div style="display:flex;gap:14px;margin-bottom:14px;">
+                                <img class="thread-avatar" src="${issue.user.avatar_url}">
+                                <div style="flex:1;">
+                                    <div style="font-size:15px;font-weight:600;color:rgba(255,255,255,0.8);margin-bottom:4px;">@${issue.user.login}</div>
+                                    <div style="font-size:13px;color:rgba(255,255,255,0.4);">${formatDate(issue.created_at)}</div>
+                                </div>
+                            </div>
+                            <div class="thread-title">#${issue.number} ${escapeHtml(issue.title)}</div>
+                            <div class="thread-body">${escapeHtml((issue.body || '').slice(0, 140))}${(issue.body?.length || 0) > 140 ? '...' : ''}</div>
+                            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                                <span class="badge">${issue.state === 'open' ? '● Open' : '○ Closed'}</span>
+                                ${actionStatus ? `<a onclick="event.stopPropagation(); window.viewIssueActions(${issue.number})" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.08);color:#fff;font-size:13px;font-weight:600;text-decoration:none;display:inline-flex;gap:4px;cursor:pointer;">⚡ ${actionStatus.text}</a>` : ''}
+                                ${traceStatus ? `<a onclick="event.stopPropagation(); window.viewIssueTrace(${issue.number})" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.08);color:#fff;font-size:13px;font-weight:600;text-decoration:none;display:inline-flex;gap:4px;cursor:pointer;">📈</a>` : ''}
+                                <span style="font-size:14px;color:rgba(255,255,255,0.5);">💬 ${issue.comments}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            function getActionStatus(issueNum) {
+                const issueActions = actions.filter(a => extractIssueNum(a) === issueNum);
+                if (!issueActions.length) return null;
+                const running = issueActions.find(a => a.status === 'in_progress' || a.status === 'queued');
+                if (running) return { text: 'Running' };
+                const latest = issueActions[0];
+                if (latest.conclusion === 'success') return { text: 'Done' };
+                if (latest.conclusion === 'failure') return { text: 'Failed' };
+                return { text: `${issueActions.length}` };
+            }
+
+            function getTraceStatus(issueNum) {
+                return traces.some(t => (t.metadata?.issue_id || t.tags?.find(x => x.startsWith('issue:'))?.split(':')[1]) == issueNum);
+            }
+
+            function extractIssueNum(action) {
+                const match = action.display_title?.match(/#(\d+)/) || action.head_commit?.message?.match(/#(\d+)/);
+                return match ? parseInt(match[1]) : null;
+            }
+
+            function updateUrl(type, id) {
+                const url = new URL(window.location);
+                url.searchParams.set(type, id);
+                window.history.pushState({}, '', url);
+            }
+
+            
+            window.openIssueDetailFromProject = async function(num, repo) {
+                try {
+                    const res = await fetch(`https://api.github.com/repos/${repo}/issues/${num}`, { 
+                        headers: { 'Authorization': `Bearer ${config.github.token}` }
+                    });
+                    
+                    if (!res.ok) {
+                        showToast(`Issue #${num} not found`);
+                        return;
+                    }
+                    
+                    currentIssue = await res.json();
+                    currentIssue._crossRepo = repo;
+                    
+                    document.getElementById('issueModalTitle').textContent = `${repo} #${num}`;
+                    document.getElementById('issueModalBody').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+                    document.getElementById('issueModal').classList.add('active');
+
+                    const commentsRes = await fetch(`https://api.github.com/repos/${repo}/issues/${num}/comments`, { 
+                        headers: { 'Authorization': `Bearer ${config.github.token}` }
+                    });
+                    currentIssue.comments_data = await commentsRes.json();
+                    
+                    renderIssueDetail();
+                } catch (e) {
+                    showToast('Error loading issue');
+                }
+            };
+
+            window.openIssueDetail = async function(num) {
+                currentIssue = issues.find(i => i.number === num);
+                if (!currentIssue) {
+                    try {
+                        const res = await fetch(`https://api.github.com/repos/${config.github.repo}/issues/${num}`, { 
+                            headers: { 'Authorization': `Bearer ${config.github.token}` }
+                        });
+                        if (res.ok) currentIssue = await res.json();
+                    } catch (e) {
+                        showToast('Issue not found');
+                        return;
+                    }
+                }
+                if (!currentIssue) {
+                    showToast('Issue #' + num + ' not found');
+                    return;
+                }
+
+                document.getElementById('issueModalTitle').textContent = `#${num} ${currentIssue.title}`;
+                document.getElementById('issueModalBody').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+                document.getElementById('issueModal').classList.add('active');
+
+                try {
+                    const commentsRes = await fetch(`https://api.github.com/repos/${config.github.repo}/issues/${num}/comments`, { 
+                        headers: { 'Authorization': `Bearer ${config.github.token}` }
+                    });
+                    currentIssue.comments_data = await commentsRes.json();
+                    renderIssueDetail();
+                } catch (e) {
+                    document.getElementById('issueModalBody').innerHTML = `<div class="empty-state"><p>${e.message}</p></div>`;
+                }
+            };
+
+            function renderIssueDetail() {
+                const body = document.getElementById('issueModalBody');
+                const actionStatus = getActionStatus(currentIssue.number);
+                const bodyHtml = currentIssue.body ? marked.parse(currentIssue.body) : '<em style="color:rgba(255,255,255,0.3);">No description</em>';
+                
+                body.innerHTML = `
+                    <div>
+                        <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+                            <span class="badge">${currentIssue.state}</span>
+                            <span style="font-size:14px;color:rgba(255,255,255,0.5);">@${currentIssue.user.login}</span>
+                            <span style="font-size:14px;color:rgba(255,255,255,0.5);">${formatDate(currentIssue.created_at)}</span>
+                            ${actionStatus ? `<a onclick="window.closeIssueModal(); window.viewIssueActions(${currentIssue.number});" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.08);color:#fff;font-size:13px;font-weight:600;text-decoration:none;display:inline-flex;cursor:pointer;">⚡ ${actionStatus.text}</a>` : ''}
+                        </div>
+                        <div class="markdown-body">${bodyHtml}</div>
+                    </div>
+                    <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:20px;margin-top:20px;">
+                        <h4 style="font-size:16px;margin-bottom:14px;color:rgba(255,255,255,0.7);">💬 Comments (${currentIssue.comments_data?.length || 0})</h4>
+                        ${(currentIssue.comments_data || []).map(c => `<div class="comment"><div style="display:flex;gap:10px;margin-bottom:8px;"><span class="comment-author">@${c.user.login}</span><span class="comment-time">${formatDate(c.created_at)}</span></div><div class="markdown-body">${marked.parse(c.body)}</div></div>`).join('')}
+                        <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+                            <textarea class="form-input" id="commentInput" placeholder="Add comment..." rows="3"></textarea>
+                            <button class="btn btn-primary btn-sm" onclick="window.addComment()">Send</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            window.addComment = async function() {
+                const text = document.getElementById('commentInput').value.trim();
+                if (!text) return showToast('Enter comment');
+
+                try {
+                    const repo = currentIssue._crossRepo || config.github.repo;
+                    await fetch(`https://api.github.com/repos/${repo}/issues/${currentIssue.number}/comments`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${config.github.token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ body: text })
+                    });
+
+                    showToast('Sent!');
+                    document.getElementById('commentInput').value = '';
+                    
+                    const commentsRes = await fetch(`https://api.github.com/repos/${repo}/issues/${currentIssue.number}/comments`, { 
+                        headers: { 'Authorization': `Bearer ${config.github.token}` }
+                    });
+                    currentIssue.comments_data = await commentsRes.json();
+                    renderIssueDetail();
+                } catch (e) {
+                    showToast('Error');
+                }
+            };
+
+            window.closeIssueModal = function() {
+                document.getElementById('issueModal').classList.remove('active');
+                const url = new URL(window.location);
+                url.searchParams.delete('issue');
+                window.history.replaceState({}, '', url);
+            };
+
+            window.viewIssueActions = function(issueNum) {
+                filteredIssueNum = issueNum;
+                window.showPage('actions');
+                if (!pagesLoaded.actions) { loadActions(); pagesLoaded.actions = true; } else { renderActions(); }
+                const issueActions = actions.filter(a => extractIssueNum(a) === issueNum);
+                if (issueActions.length) window.selectAction(issueActions[0].id);
+            };
+
+            window.viewIssueTrace = function(issueNum) {
+                window.showPage('traces');
+                if (!pagesLoaded.traces) { loadTraces(); pagesLoaded.traces = true; }
+                setTimeout(() => {
+                    const trace = traces.find(t => (t.metadata?.issue_id || t.tags?.find(x => x.startsWith('issue:'))?.split(':')[1]) == issueNum);
+                    if (trace) window.openTraceDetail(trace.id);
+                }, 300);
+            };
+
+            window.createIssue = async function() {
+                const text = document.getElementById('issueInput').value.trim();
+                if (!text) return showToast('Enter text');
+                
+                try {
+                    const issue = await (await fetch(`https://api.github.com/repos/${config.github.repo}/issues`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${config.github.token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: text.split('\n')[0].slice(0, 60), body: text })
+                    })).json();
+                    
+                    showToast(`Issue #${issue.number} created!`);
+                    document.getElementById('issueInput').value = '';
+                    document.getElementById('issueInput').style.height = 'auto';
+                    loadIssues();
+                    setTimeout(() => { 
+                        currentIssue = issue;
+                        window.openIssueDetail(issue.number); 
+                    }, 500);
+                } catch (e) {
+                    showToast('Error');
+                }
+            };
+
+            // ============ ACTIONS ============
+            async function loadActions(silent = false) {
+                const container = document.getElementById('actionsContainer');
+                if (!silent) container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+                try {
+                    let allActions = [];
+                    let page = 1;
+                    let hasMore = true;
+                    
+                    while (hasMore) {
+                        const res = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/workflows/${config.github.workflow}/runs?per_page=100&page=${page}`, { 
+                            headers: { 'Authorization': `Bearer ${config.github.token}` }
+                        });
+                        if (!res.ok && !silent) throw new Error(`API: ${res.status}`);
+                        
+                        const pageActions = (await res.json()).workflow_runs || [];
+                        allActions = allActions.concat(pageActions);
+                        
+                        // Check if there are more pages
+                        hasMore = pageActions.length === 100;
+                        page++;
+                    }
+                    
+                    actions = allActions;
+                    if (!silent) {
+                        renderActions();
+                        if (!filteredIssueNum) {
+                            const running = actions.find(a => a.status === 'in_progress');
+                            if (running) window.selectAction(running.id);
+                        }
+                    }
+                } catch (e) {
+                    if (!silent) container.innerHTML = `<div class="empty-state" style="padding:40px;"><p>${e.message}</p></div>`;
+                }
+            }
+
+            function renderActions() {
+                const container = document.getElementById('actionsContainer');
+                let displayActions = actions;
+                if (filteredIssueNum !== null) displayActions = actions.filter(a => extractIssueNum(a) === filteredIssueNum);
+                
+                document.getElementById('issueFilterBadge').innerHTML = filteredIssueNum !== null ? `<span class="filter-badge" onclick="clearIssueFilter()">Issue #${filteredIssueNum} ✕</span>` : '';
+                
+                if (!displayActions.length) {
+                    container.innerHTML = filteredIssueNum !== null 
+                        ? `<div class="empty-state"><div class="empty-icon">⚡</div><h3>No actions for #${filteredIssueNum}</h3><button class="btn" onclick="clearIssueFilter()" style="margin-top:12px;">Show All</button></div>`
+                        : '<div class="empty-state"><div class="empty-icon">⚡</div><p>No actions</p></div>';
+                    return;
+                }
+
+                container.innerHTML = displayActions.map(action => {
+                    const isRunning = action.status === 'in_progress' || action.status === 'queued';
+                    const statusClass = isRunning ? 'running' : action.conclusion === 'success' ? 'success' : 'failure';
+                    const issueNum = extractIssueNum(action);
+                    return `
+                        <div class="action-item ${currentAction?.id === action.id ? 'selected' : ''}" onclick="window.selectAction(${action.id}); updateUrl('action', ${action.id});">
+                            <div class="action-title">
+                                <span class="status-dot ${statusClass}"></span>
+                                #${action.run_number} ${issueNum ? `<span style="color:rgba(255,255,255,0.6);font-size:13px;">#${issueNum}</span>` : ''}
+                            </div>
+                            <div class="action-meta">${action.head_branch} · ${formatDate(action.created_at)} ${isRunning ? '<span style="margin-left:6px;color:#fff;">LIVE</span>' : ''}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            function clearIssueFilter() { filteredIssueNum = null; renderActions(); }
+
+            window.selectAction = async function(id) {
+                clearInterval(streamingInterval);
+                currentAction = actions.find(a => a.id === id);
+                if (!currentAction) return;
+
+                document.querySelectorAll('.action-item').forEach(el => el.classList.remove('selected'));
+                Array.from(document.querySelectorAll('.action-item')).find(el => el.textContent.includes(`#${currentAction.run_number}`))?.classList.add('selected');
+
+                const issueNum = extractIssueNum(currentAction);
+                document.getElementById('logsTitle').textContent = `#${currentAction.run_number}${issueNum ? ` (#${issueNum})` : ''}`;
+                document.getElementById('logsContent').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+                
+                const isRunning = currentAction.status === 'in_progress' || currentAction.status === 'queued';
+                if (isRunning) {
+                    document.getElementById('liveIndicator').innerHTML = '<div class="live-indicator"><div class="live-dot"></div>LIVE</div>';
+                    await loadLogs();
+                    streamLogs();
+                } else {
+                    document.getElementById('liveIndicator').innerHTML = '';
+                    await loadLogs();
+                }
+            };
+
+            async function loadLogs() {
+                try {
+                    const jobs = (await (await fetch(`https://api.github.com/repos/${config.github.repo}/actions/runs/${currentAction.id}/jobs`, { headers: { 'Authorization': `Bearer ${config.github.token}` }})).json()).jobs || [];
+                    if (!jobs.length) return document.getElementById('logsContent').innerHTML = '<div class="empty-state"><p>No jobs</p></div>';
+
+                    const logsRes = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/jobs/${jobs[0].id}/logs`, { headers: { 'Authorization': `Bearer ${config.github.token}` }});
+                    if (!logsRes.ok) return renderJobSteps(jobs[0]);
+                    
+                    const fullLogs = await logsRes.text();
+                    const cleanedLogs = cleanLogs(fullLogs);
+                    
+                    const agentStart = cleanedLogs.match(/Agent created with \d+ tools/);
+                    const agentEnd = cleanedLogs.match(/✅ Agent completed successfully[\s\S]*?Post job cleanup/);
+                    let agentLogs = cleanedLogs;
+                    if (agentStart && agentEnd) {
+                        const startIdx = cleanedLogs.indexOf(agentStart[0]);
+                        const endIdx = cleanedLogs.indexOf(agentEnd[0]) + agentEnd[0].length;
+                        agentLogs = cleanedLogs.slice(startIdx, endIdx);
+                    }
+                    
+                    let summaryHtml = '';
+                    const summaryMatch = cleanedLogs.match(/## Agent\s+([\s\S]*?)(?=\n##|Post job cleanup|$)/);
+                    if (summaryMatch) {
+                        summaryHtml = `<div class="summary-card"><div class="summary-title">🤖 Summary</div><div class="markdown-body" style="font-size:14px;">${marked.parse(summaryMatch[1].trim())}</div></div>`;
+                    }
+                    
+                    renderLogs(agentLogs, summaryHtml);
+                } catch (e) {
+                    document.getElementById('logsContent').innerHTML = `<div class="empty-state"><p>${e.message}</p></div>`;
+                }
+            }
+
+            function cleanLogs(logs) {
+                return logs.replace(/\[(\d+;)*\d+m/g, '').replace(/##\[group\].*?\n/g, '').replace(/##\[endgroup\]\n/g, '').replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z /gm, '');
+            }
+
+            function renderLogs(logs, summaryHtml = '') {
+                document.getElementById('logsContent').innerHTML = summaryHtml + logs.split('\n').map(line => {
+                    if (!line.trim()) return '';
+                    let cls = /error|fail|❌/i.test(line) ? 'error' : /success|✓|✅/i.test(line) ? 'success' : /Loading|trace|KB/i.test(line) ? 'info' : '';
+                    return `<div class="log-line ${cls}">${escapeHtml(line.trim())}</div>`;
+                }).filter(Boolean).join('');
+                document.getElementById('logsContent').scrollTop = 999999;
+            }
+
+            function renderJobSteps(job) {
+                if (!job.steps) return;
+                document.getElementById('logsContent').innerHTML = job.steps.map(s => `<div class="log-line ${s.conclusion === 'success' ? 'success' : s.conclusion === 'failure' ? 'error' : ''}">${s.number}. ${s.name} ${s.conclusion ? `[${s.conclusion}]` : '[...]'}</div>`).join('');
+            }
+
+            function streamLogs() {
+                streamingInterval = setInterval(async () => {
+                    await loadLogs();
+                    currentAction = await (await fetch(`https://api.github.com/repos/${config.github.repo}/actions/runs/${currentAction.id}`, { headers: { 'Authorization': `Bearer ${config.github.token}` }})).json();
+                    if (currentAction.status !== 'in_progress' && currentAction.status !== 'queued') {
+                        clearInterval(streamingInterval);
+                        document.getElementById('liveIndicator').innerHTML = '';
+                        renderActions();
+                    }
+                }, 3000);
+            }
+
+            // ============ SCHEDULE ============
+            async function loadSchedule() {
+                try {
+                    const res = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/variables/AGENT_SCHEDULES`, { headers: { 'Authorization': `Bearer ${config.github.token}` }});
+                    scheduleData = res.status === 404 ? { jobs: {} } : JSON.parse((await res.json()).value || '{"jobs":{}}');
+                    renderSchedule();
+                } catch (e) {
+                    document.getElementById('jobsList').innerHTML = `<div class="empty-state"><p>${e.message}</p></div>`;
+                }
+            }
+
+            function renderSchedule() {
+                const container = document.getElementById('jobsList');
+                const jobs = Object.keys(scheduleData.jobs || {});
+                if (!jobs.length) return container.innerHTML = '<div class="empty-state" style="padding:30px;"><div class="empty-icon">📅</div><h3>No Jobs</h3></div>';
+
+                container.innerHTML = jobs.map(jobId => {
+                    const job = scheduleData.jobs[jobId];
+                    const enabled = job.enabled !== false;
+                    return `
+                        <div class="job-item ${enabled ? '' : 'disabled'} ${selectedJob === jobId ? 'selected' : ''}" onclick="window.selectJobDetail('${jobId}')">
+                            <div class="job-title">
+                                <span style="color:${enabled ? '#fff' : 'rgba(255,255,255,0.4)'};">${escapeHtml(jobId)}</span>
+                                <span class="badge" style="background:${enabled ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'};">${enabled ? 'ON' : 'OFF'}</span>
+                            </div>
+                            <div class="job-cron">${job.cron || job.run_at || '-'}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            window.selectJobDetail = function(jobId) {
+                selectedJob = jobId;
+                renderSchedule();
+                renderJobDetail();
+            };
+
+            function renderJobDetail() {
+                const container = document.getElementById('jobDetailContainer');
+                if (!selectedJob || !scheduleData.jobs[selectedJob]) {
+                    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><h3>Select a Job</h3></div>';
+                    return;
+                }
+
+                const job = scheduleData.jobs[selectedJob];
+                const enabled = job.enabled !== false;
+                
+                container.innerHTML = `
+                    <div class="job-detail-header">
+                        <h4 style="margin:0;">${escapeHtml(selectedJob)}</h4>
+                        <div class="job-detail-actions">
+                            <button class="btn btn-sm" onclick="window.toggleJobEnabled('${selectedJob}')">${enabled ? '⏸ Disable' : '▶ Enable'}</button>
+                            <button class="btn btn-sm" onclick="window.editJob('${selectedJob}')">✏️ Edit</button>
+                            <button class="btn btn-sm" onclick="window.deleteJob('${selectedJob}')" style="background:rgba(255,255,255,0.08);">Delete</button>
+                        </div>
+                    </div>
+                    
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;margin-bottom:14px;">
+                        <div style="font-size:12px;color:rgba(255,255,255,0.5);text-transform:uppercase;margin-bottom:6px;">Schedule</div>
+                        <div style="font-size:16px;font-family:'SF Mono',monospace;color:#fff;">${job.cron || job.run_at || '-'}</div>
+                    </div>
+                    
+                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;">
+                        <div style="font-size:12px;color:rgba(255,255,255,0.5);text-transform:uppercase;margin-bottom:6px;">Prompt</div>
+                        <div style="font-size:15px;color:rgba(255,255,255,0.8);line-height:1.6;">${escapeHtml(job.prompt || '')}</div>
+                    </div>
+                `;
+            }
+
+            window.showAddJobForm = function() {
+                document.getElementById('scheduleModalTitle').textContent = 'Add Job';
+                document.getElementById('scheduleModal').classList.add('active');
+                document.getElementById('jobId').value = '';
+                document.getElementById('jobId').disabled = false;
+                document.getElementById('jobCron').value = '';
+                document.getElementById('jobPrompt').value = '';
+            };
+
+            window.editJob = function(jobId) {
+                const job = scheduleData.jobs[jobId];
+                if (!job) return;
+                
+                document.getElementById('scheduleModalTitle').textContent = `Edit: ${jobId}`;
+                document.getElementById('scheduleModal').classList.add('active');
+                document.getElementById('jobId').value = jobId;
+                document.getElementById('jobId').disabled = true;
+                document.getElementById('jobCron').value = job.cron || '';
+                document.getElementById('jobPrompt').value = job.prompt || '';
+            };
+
+            window.toggleJobEnabled = async function(jobId) {
+                const job = scheduleData.jobs[jobId];
+                if (!job) return;
+                
+                job.enabled = job.enabled === false ? true : false;
+                
+                try {
+                    await saveScheduleToGithub();
+                    showToast(`${jobId} ${job.enabled ? 'enabled' : 'disabled'}`);
+                    renderSchedule();
+                    renderJobDetail();
+                } catch (e) {
+                    showToast('Error');
+                }
+            }
+
+            window.saveJob = async function() {
+                const jobId = document.getElementById('jobId').value.trim();
+                const cron = document.getElementById('jobCron').value.trim();
+                const prompt = document.getElementById('jobPrompt').value.trim();
+                if (!jobId || !cron || !prompt) return showToast('Fill all');
+                
+                if (!scheduleData.jobs) scheduleData.jobs = {};
+                
+                const existingEnabled = scheduleData.jobs[jobId]?.enabled;
+                scheduleData.jobs[jobId] = { cron, prompt, enabled: existingEnabled !== undefined ? existingEnabled : true };
+                
+                try {
+                    await saveScheduleToGithub();
+                    showToast('Saved!');
+                    window.closeScheduleModal();
+                    selectedJob = jobId;
+                    loadSchedule();
+                } catch (e) {
+                    showToast('Error');
+                }
+            };
+
+            window.deleteJob = async function(jobId) {
+                if (!confirm(`Delete ${jobId}?`)) return;
+                delete scheduleData.jobs[jobId];
+                try {
+                    await saveScheduleToGithub();
+                    showToast('Deleted!');
+                    selectedJob = null;
+                    renderSchedule();
+                    renderJobDetail();
+                } catch (e) {
+                    showToast('Error');
+                }
+            };
+
+            async function saveScheduleToGithub() {
+                const value = JSON.stringify(scheduleData);
+                const check = await fetch(`https://api.github.com/repos/${config.github.repo}/actions/variables/AGENT_SCHEDULES`, { headers: { 'Authorization': `Bearer ${config.github.token}` }});
+                const method = check.ok ? 'PATCH' : 'POST';
+                const url = check.ok ? `https://api.github.com/repos/${config.github.repo}/actions/variables/AGENT_SCHEDULES` : `https://api.github.com/repos/${config.github.repo}/actions/variables`;
+                const body = check.ok ? { value } : { name: 'AGENT_SCHEDULES', value };
+                const res = await fetch(url, { method, headers: { 'Authorization': `Bearer ${config.github.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                if (!res.ok && res.status !== 204) throw new Error('Failed');
+            }
+
+            window.closeScheduleModal = function() { document.getElementById('scheduleModal').classList.remove('active'); };
+
+            // ============ TRACES ============
+            async function loadTraces(silent = false) {
+                const container = document.getElementById('tracesContainer');
+                if (!silent) container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+                if (!config.langfuse.publicKey) {
+                    if (!silent) container.innerHTML = '<div class="empty-state"><div class="empty-icon">📈</div><h3>Configure Langfuse</h3><button class="btn" onclick="window.showPage(\'settings\')" style="margin-top:12px;">Settings</button></div>';
+                    return;
+                }
+
+                try {
+                    const auth = btoa(`${config.langfuse.publicKey}:${config.langfuse.secretKey}`);
+                    const res = await fetch(`${config.langfuse.host}/api/public/traces?limit=50`, { headers: { 'Authorization': `Basic ${auth}` }});
+                    if (!res.ok && !silent) throw new Error(`API: ${res.status}`);
+                    traces = (await res.json()).data || [];
+                    if (!silent) renderTraces();
+                } catch (e) {
+                    if (!silent) container.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><p>${e.message}</p></div>`;
+                }
+            }
+
+            function renderTraces() {
+                const container = document.getElementById('tracesContainer');
+                if (!traces.length) return container.innerHTML = '<div class="empty-state"><div class="empty-icon">📈</div><h3>No Traces</h3></div>';
+
+                container.innerHTML = traces.map(trace => {
+                    const issueId = trace.metadata?.issue_id || trace.tags?.find(x => x.startsWith('issue:'))?.split(':')[1];
+                    const tokens = (trace.inputTokens || 0) + (trace.outputTokens || 0);
+                    const cost = trace.totalCost || 0;
+                    let gens = 0, tools = 0;
+                    if (trace.observations) {
+                        gens = trace.observations.filter(o => o.type === 'GENERATION').length;
+                        tools = trace.observations.filter(o => o.type === 'TOOL').length;
+                    }
+                    
+                    return `
+                        <div class="card clickable trace-item" onclick="window.openTraceDetail('${trace.id}'); updateUrl('trace', '${trace.id}');">
+                            <div class="trace-info">
+                                <div class="trace-name">${trace.name || 'Trace'} ${issueId ? `<span class="badge">#${issueId}</span>` : ''}</div>
+                                <div class="trace-meta">
+                                    <span>${trace.id.slice(0, 8)}...</span>
+                                    <span>${formatDate(trace.timestamp)}</span>
+                                    <span>⏱ ${formatDuration(trace.latency)}</span>
+                                </div>
+                            </div>
+                            <div class="trace-stats-row">
+                                ${tokens > 0 ? `<div class="trace-stat">${formatTokens(tokens)}</div>` : ''}
+                                ${gens > 0 ? `<div class="trace-stat">${gens}g</div>` : ''}
+                                ${tools > 0 ? `<div class="trace-stat">${tools}t</div>` : ''}
+                                <div class="trace-stat">$${cost.toFixed(3)}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            window.openTraceDetail = async function(traceId) {
+                currentTrace = traces.find(t => t.id === traceId);
+                if (!currentTrace) return;
+
+                const issueId = currentTrace.metadata?.issue_id || currentTrace.tags?.find(x => x.startsWith('issue:'))?.split(':')[1];
+                document.getElementById('traceModalTitle').textContent = `Trace ${issueId ? `#${issueId}` : ''}`;
+                document.getElementById('traceModalBody').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+                document.getElementById('traceModal').classList.add('active');
+
+                try {
+                    const auth = btoa(`${config.langfuse.publicKey}:${config.langfuse.secretKey}`);
+                    const traceRes = await fetch(`${config.langfuse.host}/api/public/traces/${traceId}`, { headers: { 'Authorization': `Basic ${auth}` }});
+                    if (!traceRes.ok) throw new Error(`API: ${traceRes.status}`);
+                    currentTrace = { ...currentTrace, ...(await traceRes.json()) };
+                    currentTrace.observations = currentTrace.observations || [];
+                    renderTraceDetail();
+                } catch (e) {
+                    document.getElementById('traceModalBody').innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><p>${e.message}</p></div>`;
+                }
+            };
+
+            function renderTraceDetail() {
+                const body = document.getElementById('traceModalBody');
+                const t = currentTrace;
+                const sorted = [...(t.observations || [])].sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+                
+                if (sorted.length) {
+                    traceStartTime = new Date(sorted[0].startTime).getTime();
+                    traceDuration = (Math.max(...sorted.map(o => new Date(o.endTime || o.startTime).getTime())) - traceStartTime) / 1000;
+                }
+                
+                conversationMessages = buildConversation(sorted);
+                const tokens = (t.inputTokens || 0) + (t.outputTokens || 0);
+                const gens = sorted.filter(o => o.type === 'GENERATION');
+                const tools = sorted.filter(o => o.type === 'TOOL');
+                
+                body.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:12px;margin-bottom:20px;">
+                        <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;text-align:center;">
+                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${formatDuration(t.latency)}</div>
+                            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;">Time</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;text-align:center;">
+                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${formatTokens(tokens)}</div>
+                            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;">Tokens</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;text-align:center;">
+                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${gens.length}</div>
+                            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;">Gens</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;text-align:center;">
+                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${tools.length}</div>
+                            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;">Tools</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05);padding:14px;border-radius:12px;text-align:center;">
+                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">$${(t.totalCost || 0).toFixed(3)}</div>
+                            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;">Cost</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;" id="conversationContainer"></div>
+                    ${conversationMessages.length ? `
+                    <div class="play-control">
+                        <button class="play-btn" id="playBtn" onclick="window.togglePlayback()"><span id="playIcon">▶</span></button>
+                        <div style="flex:1;min-width:150px;">
+                            <input type="range" class="play-slider" id="timelineSlider" min="0" max="1000" value="0" oninput="window.scrubTimeline(this.value)">
+                            <div class="play-time"><span id="playCurrentTime">0.0s</span><span id="playTotalTime">${formatDuration(traceDuration)}</span></div>
+                        </div>
+                    </div>` : ''}
+                `;
+                renderConversation(0);
+            }
+
+            function buildConversation(observations) {
+                const messages = [], seen = new Set();
+                observations.forEach((o, idx) => {
+                    const startTime = (new Date(o.startTime).getTime() - traceStartTime) / 1000;
+                    const endTime = (new Date(o.endTime || o.startTime).getTime() - traceStartTime) / 1000;
+                    if (o.type === 'GENERATION') {
+                        if (idx === 0 && o.input && Array.isArray(o.input)) {
+                            o.input.forEach(msg => {
+                                if (msg.role === 'user') {
+                                    const text = extractText(msg.content);
+                                    if (text && !seen.has(`user:${text.slice(0, 100)}`)) {
+                                        seen.add(`user:${text.slice(0, 100)}`);
+                                        messages.push({ time: startTime, type: 'user', role: '👤 User', content: text.slice(0, 350) });
+                                    }
+                                }
+                            });
+                        }
+                        if (o.output?.message) {
+                            const text = extractText(o.output.message);
+                            if (text && !seen.has(`assistant:${text.slice(0, 100)}`)) {
+                                seen.add(`assistant:${text.slice(0, 100)}`);
+                                messages.push({ time: endTime, type: 'assistant', role: '🤖 Assistant', content: text.slice(0, 500) });
+                            }
+                        }
+                    } else if (o.type === 'TOOL') {
+                        messages.push({ time: startTime, type: 'tool-call', role: `🔧 ${o.name || 'tool'}`, content: truncate(typeof o.input === 'string' ? o.input : JSON.stringify(o.input), 60) });
+                    }
+                });
+                return messages.sort((a, b) => a.time - b.time);
+            }
+
+            function renderConversation(currentTime) {
+                const container = document.getElementById('conversationContainer');
+                if (!container) return;
+                container.innerHTML = conversationMessages.filter(m => m.time <= currentTime).map(msg => `<div class="chat-message ${msg.type}"><div class="message-role">${msg.role}</div><div>${escapeHtml(msg.content)}</div></div>`).join('');
+            }
+
+            window.togglePlayback = function() { isPlaying ? stopPlayback() : startPlayback(); };
+
+            function startPlayback() {
+                isPlaying = true;
+                const playIcon = document.getElementById('playIcon');
+                const playBtn = document.getElementById('playBtn');
+                if (playIcon) playIcon.textContent = '⏸';
+                if (playBtn) playBtn.classList.add('playing');
+                const slider = document.getElementById('timelineSlider');
+                if (!slider) return;
+                let v = parseInt(slider.value);
+                if (v >= 990) v = 0;
+                playbackInterval = setInterval(() => {
+                    v += 10;
+                    if (v >= 1000) { v = 1000; stopPlayback(); }
+                    slider.value = v;
+                    window.scrubTimeline(v);
+                }, 50);
+            }
+
+            function stopPlayback() {
+                isPlaying = false;
+                const playIcon = document.getElementById('playIcon');
+                const playBtn = document.getElementById('playBtn');
+                if (playIcon) playIcon.textContent = '▶';
+                if (playBtn) playBtn.classList.remove('playing');
+                if (playbackInterval) { clearInterval(playbackInterval); playbackInterval = null; }
+            }
+
+            window.scrubTimeline = function(value) {
+                const currentTime = traceDuration * (value / 1000);
+                const el = document.getElementById('playCurrentTime');
+                if (el) el.textContent = formatDuration(currentTime);
+                renderConversation(currentTime);
+            };
+
+            function extractText(content) {
+                if (!content) return '';
+                if (typeof content === 'string') {
+                    try { const parsed = JSON.parse(content); if (Array.isArray(parsed)) return parsed.map(p => p.text || '').join(' '); return content; } catch { return content; }
+                }
+                if (Array.isArray(content)) return content.map(c => c.text || '').join(' ');
+                return '';
+            }
+
+            window.closeTraceModal = function() {
+                if (isPlaying) stopPlayback();
+                document.getElementById('traceModal').classList.remove('active');
+                const url = new URL(window.location);
+                url.searchParams.delete('trace');
+                window.history.replaceState({}, '', url);
+            };
+
+            
+            window.togglePromptView = function(view) {
+                document.getElementById('editPromptBtn').classList.toggle('active', view === 'edit');
+                document.getElementById('previewPromptBtn').classList.toggle('active', view === 'preview');
+                
+                const textarea = document.getElementById('systemPromptInput');
+                const preview = document.getElementById('systemPromptPreview');
+                
+                if (view === 'preview') {
+                    textarea.style.display = 'none';
+                    preview.classList.add('active');
+                    preview.innerHTML = marked.parse(textarea.value || '*No content*');
+                } else {
+                    textarea.style.display = 'block';
+                    preview.classList.remove('active');
+                }
+            };
+
+            window.openFullscreenPrompt = function() {
+                const content = document.getElementById('systemPromptInput').value;
+                document.getElementById('fullscreenPromptContent').innerHTML = marked.parse(content || '*No content*');
+                document.getElementById('fullscreenPromptModal').classList.add('active');
+            };
+
+            window.closeFullscreenPrompt = function() {
+                document.getElementById('fullscreenPromptModal').classList.remove('active');
+            };
+
+            window.highlightTools = function(el) {
+                // Add visual feedback for tool syntax (done via CSS with monospace font)
+            };
+
+            window.formatJSON = function(fieldId) {
+                const el = document.getElementById(fieldId);
+                try {
+                    const parsed = JSON.parse(el.value);
+                    el.value = JSON.stringify(parsed, null, 2);
+                    showToast('Formatted!');
+                } catch (e) {
+                    showToast('Invalid JSON');
+                }
+            };
+
+            window.autoResize = function(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; };
+            function formatDate(d) { if (!d) return '-'; const diff = (Date.now() - new Date(d)) / 1000; return diff < 60 ? 'now' : diff < 3600 ? `${Math.floor(diff / 60)}m` : diff < 86400 ? `${Math.floor(diff / 3600)}h` : new Date(d).toLocaleDateString('en', { month: 'short', day: 'numeric' }); }
+            function formatDuration(s) { return !s || s < 0 ? '-' : s < 1 ? `${(s * 1000).toFixed(0)}ms` : s < 60 ? `${s.toFixed(1)}s` : `${(s / 60).toFixed(1)}m`; }
+            function formatTokens(t) { return !t ? '-' : t >= 1e6 ? `${(t / 1e6).toFixed(1)}M` : t >= 1e3 ? `${(t / 1e3).toFixed(1)}K` : t.toString(); }
+            function truncate(str, len) { return str?.length > len ? str.slice(0, len) + '...' : str || ''; }
+            function escapeHtml(t) { if (!t) return ''; const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+            function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show'; setTimeout(() => t.classList.remove('show'), 3000); }
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') { window.closeIssueModal(); window.closeTraceModal(); window.closeScheduleModal(); } });
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,165 @@
+name: Agent
+
+on:
+  schedule:
+    # Autonomous run every 4 hours - general maintenance and discovery
+    # - cron: '0 */4 * * *'
+  # Additional scheduled jobs are handled by control.yml (hourly checks)
+  # Use the scheduler tool to configure custom schedules via AGENT_SCHEDULES variable
+  issues:
+    types: [opened, edited, closed, reopened, assigned, unassigned, labeled, unlabeled]
+  issue_comment:
+    types: [created, edited, deleted]
+  pull_request:
+    types: [opened, closed, edited, reopened, synchronize, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited]
+  discussion:
+    types: [created, edited, answered, unanswered, category_changed, labeled, unlabeled, transferred, pinned, unpinned, locked, unlocked]
+  discussion_comment:
+    types: [created, edited, deleted]
+  pull_request_review_comment:
+    types: [created, edited]
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Prompt for agent to perform'
+        required: false
+        type: string
+      system_prompt:
+        description: 'Additional system prompt instructions'
+        required: false
+        type: string
+      tools:
+        description: 'Tool config (e.g., strands_tools:shell;strands_coder:use_github)'
+        required: false
+        type: string
+      model:
+        description: 'Model ID'
+        default: "global.anthropic.claude-opus-4-5-20251101-v1:0"
+        required: false
+        type: string
+      max_tokens:
+        description: 'Max tokens'
+        default: "60000"
+        required: false
+        type: string
+
+permissions: write-all
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check user authorization
+        id: check-auth
+        run: |
+          # For scheduled runs, always authorize
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "✅ Scheduled run - authorized"
+            echo "authorized=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # For workflow_dispatch from control.yml (github-actions[bot])
+          if [ "${{ github.actor }}" = "github-actions[bot]" ]; then
+            echo "✅ Control loop dispatch - authorized"
+            echo "authorized=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # For manual/event-triggered runs, check authorization
+          AUTHORIZED_USERS="${{ secrets.AUTHORIZED_USERS }}"
+          
+          echo "Checking authorization for user: ${{ github.actor }}"
+          
+          if [[ ",$AUTHORIZED_USERS," == *",${{ github.actor }},"* ]]; then
+            echo "✅ User ${{ github.actor }} is authorized"
+            echo "authorized=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ User ${{ github.actor }} is NOT authorized"
+            echo "Authorized users: $AUTHORIZED_USERS"
+            echo "🚫 UNAUTHORIZED ACCESS ATTEMPT"
+            echo "Repository: ${{ github.repository }}"
+            echo "Event: ${{ github.event_name }}"
+            echo "Time: $(date)"
+            echo "Contact repository administrators for access."
+            echo "authorized=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Checkout code
+        if: steps.check-auth.outputs.authorized == 'true'
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Strands Agent
+        if: steps.check-auth.outputs.authorized == 'true'
+        uses: ./
+        env:
+          # GitHub tokens
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+          
+          # Model provider API keys (set the one you need based on STRANDS_PROVIDER)
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          WRITER_API_KEY: ${{ secrets.WRITER_API_KEY }}
+          LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+          LLAMAAPI_API_KEY: ${{ secrets.LLAMAAPI_API_KEY }}
+          AWS_BEARER_TOKEN_BEDROCK: ${{ secrets.AWS_BEARER_TOKEN_BEDROCK }}
+          
+          # Advanced model configuration
+          STRANDS_ADDITIONAL_REQUEST_FIELDS: ${{ vars.STRANDS_ADDITIONAL_REQUEST_FIELDS }}
+          
+          # MCP servers
+          MCP_SERVERS: ${{ vars.MCP_SERVERS }}
+          
+          # Project & Knowledge Base
+          STRANDS_CODER_PROJECT_ID: ${{ vars.STRANDS_CODER_PROJECT_ID }}
+          STRANDS_KNOWLEDGE_BASE_ID: ${{ vars.STRANDS_KNOWLEDGE_BASE_ID }}
+          
+          # Session persistence
+          S3_SESSION_BUCKET: ${{ vars.S3_SESSION_BUCKET }}
+          S3_SESSION_PREFIX: ${{ vars.S3_SESSION_PREFIX }}
+          
+          # Slack integration
+          SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          
+          # Observability (Langfuse)
+          LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          
+          # Advanced settings
+          STRANDS_TOOLS_DIRECTORY: ${{ vars.STRANDS_TOOLS_DIRECTORY }}
+        with:
+          prompt: |
+            ${{ 
+              github.event.inputs.prompt ||
+              (github.event_name == 'schedule' && 'I am running on a scheduled basis (every 4 hours). I will check the repository status, review open issues and PRs, and provide insights or suggestions for improvements, work on active tracked tasks and discover new opportunities to work on. I have full GitHub context available.') ||
+              'I received a GitHub event and am running autonomously. I will analyze the context and take appropriate action. I have full GitHub event details available.'
+            }}
+
+          # Model configuration
+          provider: ${{ github.event.inputs.provider || vars.STRANDS_PROVIDER || 'bedrock' }}
+          model: ${{ github.event.inputs.model || vars.STRANDS_MODEL_ID || 'global.anthropic.claude-opus-4-5-20251101-v1:0' }}
+          max_tokens: ${{ vars.STRANDS_MAX_TOKENS || '60000' }}
+
+          # System prompt configuration
+          system_prompt: ${{ github.event.inputs.system_prompt || vars.SYSTEM_PROMPT || vars.INPUT_SYSTEM_PROMPT || 'You are a restricted GitHub agent for this repository, powered by Strands Agents SDK. Only authorized users can trigger your execution.' }}
+
+          # Tool configuration
+          tools: ${{ github.event.inputs.tools || vars.STRANDS_TOOLS || 'strands_tools:shell,retrieve,slack;strands_coder:use_github,create_subagent,system_prompt,store_in_kb,projects,scheduler' }}
+
+          # AWS configuration
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+          aws_region: ${{ secrets.AWS_REGION || 'us-west-2' }}
+          git_user_email: "217235299+strands-agent@users.noreply.github.com"
+          git_user_name: "strands-agent"
