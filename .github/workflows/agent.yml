@@ -1,25 +1,25 @@
 name: Agent
 
 on:
-  schedule:
-    # Autonomous run every 4 hours - general maintenance and discovery
+  # Autonomous run every 4 hours - general maintenance and discovery
+  # schedule:
     # - cron: '0 */4 * * *'
   # Additional scheduled jobs are handled by control.yml (hourly checks)
   # Use the scheduler tool to configure custom schedules via AGENT_SCHEDULES variable
-  issues:
-    types: [opened, edited, closed, reopened, assigned, unassigned, labeled, unlabeled]
-  issue_comment:
-    types: [created, edited, deleted]
-  pull_request:
-    types: [opened, closed, edited, reopened, synchronize, ready_for_review]
-  pull_request_review:
-    types: [submitted, edited]
-  discussion:
-    types: [created, edited, answered, unanswered, category_changed, labeled, unlabeled, transferred, pinned, unpinned, locked, unlocked]
-  discussion_comment:
-    types: [created, edited, deleted]
-  pull_request_review_comment:
-    types: [created, edited]
+  # issues:
+  #   types: [opened, edited, closed, reopened, assigned, unassigned, labeled, unlabeled]
+  # issue_comment:
+  #   types: [created, edited, deleted]
+  # pull_request:
+  #   types: [opened, closed, edited, reopened, synchronize, ready_for_review]
+  # pull_request_review:
+  #   types: [submitted, edited]
+  # discussion:
+  #   types: [created, edited, answered, unanswered, category_changed, labeled, unlabeled, transferred, pinned, unpinned, locked, unlocked]
+  # discussion_comment:
+  #   types: [created, edited, deleted]
+  # pull_request_review_comment:
+  #   types: [created, edited]
   workflow_dispatch:
     inputs:
       prompt:
