@@ -26,6 +26,7 @@
     ◆ <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a>
     ◆ <a href="https://cloud.langfuse.com">Langfuse</a>
     ◆ <a href="https://github.com/strands-agents/sdk-python">Strands SDK</a>
+    ◆ <a href="https://dev.strands.my">Dashboard</a>
   </p>
 </div>
 
@@ -113,6 +114,38 @@ flowchart TB
     class UG,PR,SCH,SUB,KB,SYS toolStyle
     class GQL,BKB,LF,S3 externalStyle
 ```
+
+## 🌐 Web Dashboard
+
+**Live Demo:** [dev.strands.my](https://dev.strands.my)
+
+A zero-install PWA dashboard for managing your Strands Coder agent:
+
+| Tab | Features |
+|-----|----------|
+| 📊 **Dashboard** | Project stats, GitHub Project board integration |
+| 📋 **Issues** | Browse, filter, create issues with full thread view |
+| ⚡ **Actions** | Live log streaming, issue-linked workflow runs |
+| 📈 **Traces** | Langfuse integration with conversation playback |
+| 🤖 **Agent** | Configure model, tools, MCP servers, knowledge base |
+| 📅 **Schedule** | Cron job management with enable/disable |
+| ⚙️ **Settings** | GitHub & Langfuse config, encrypted share links |
+
+<details>
+<summary><b>Dashboard Setup</b></summary>
+
+1. **Open** [dev.strands.my](https://dev.strands.my) on any device
+2. **Configure** GitHub token and repository in Settings
+3. **Optionally** add Langfuse credentials for trace viewing
+4. **Share** encrypted config links with your team
+
+The dashboard connects directly to GitHub and Langfuse APIs from your browser—no backend required.
+
+**Self-Host:** Deploy `docs/index.html` to any static hosting (GitHub Pages, Cloudflare, etc.)
+
+</details>
+
+---
 
 ## Quick Start
 
@@ -599,17 +632,17 @@ flowchart LR
 <details>
 <summary><b>Dashboard Features</b></summary>
 
-The included web dashboard (`docs/index.html`) provides:
+The web dashboard at [dev.strands.my](https://dev.strands.my) (also available as `docs/index.html`) provides:
 
 | Tab | Description |
 |-----|-------------|
 | 📋 **Issues** | Browse, search, create issues |
-| 🔔 **Notifications** | GitHub notifications management |
-| 📊 **Projects** | Project board with status tracking |
+| 📊 **Dashboard** | Project stats and board overview |
 | ⚡ **Actions** | Workflow runs with live logs |
 | 📈 **Traces** | Langfuse traces with playback |
 | 📅 **Schedule** | Job scheduler management |
 | 🤖 **Agent** | Model, tools, prompt configuration |
+| ⚙️ **Settings** | GitHub & Langfuse credentials |
 
 </details>
 
@@ -749,6 +782,7 @@ Apache-2.0 - see [LICENSE](LICENSE) file.
 <div align="center">
   <a href="https://github.com/cagataycali/strands-coder">GitHub</a>
   ◆ <a href="https://pypi.org/project/strands-coder/">PyPI</a>
+  ◆ <a href="https://dev.strands.my">Dashboard</a>
   ◆ <a href="https://strandsagents.com/">Strands Docs</a>
   ◆ <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a>
   ◆ <a href="https://cloud.langfuse.com">Langfuse</a>
