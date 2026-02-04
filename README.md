@@ -14,6 +14,7 @@
   </h2>
 
   <div align="center">
+    <a href="https://github.com/marketplace/actions/strands-coder"><img alt="GitHub Marketplace" src="https://img.shields.io/badge/Marketplace-Strands%20Coder-blue?logo=github"/></a>
     <a href="https://pypi.org/project/strands-coder/"><img alt="PyPI Version" src="https://img.shields.io/pypi/v/strands-coder"/></a>
     <a href="https://github.com/cagataycali/strands-coder"><img alt="GitHub stars" src="https://img.shields.io/github/stars/cagataycali/strands-coder"/></a>
     <a href="https://github.com/cagataycali/strands-coder/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/cagataycali/strands-coder"/></a>
@@ -22,7 +23,8 @@
   </div>
   
   <p>
-    <a href="https://strandsagents.com/">Strands Docs</a>
+    <a href="https://github.com/marketplace/actions/strands-coder">GitHub Marketplace</a>
+    ◆ <a href="https://strandsagents.com/">Strands Docs</a>
     ◆ <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a>
     ◆ <a href="https://cloud.langfuse.com">Langfuse</a>
     ◆ <a href="https://github.com/strands-agents/sdk-python">Strands SDK</a>
@@ -31,6 +33,67 @@
 </div>
 
 An autonomous GitHub agent that codes, reviews, tracks, schedules, and evolves—all on its own. Built with [Strands Agents SDK](https://github.com/strands-agents/sdk-python), it doesn't just respond to events—it proactively identifies work, creates issues, reviews PRs, tracks progress in GitHub Projects, and learns from every interaction.
+
+---
+
+## 🚀 Get Started in 2 Minutes
+
+**Available on [GitHub Marketplace](https://github.com/marketplace/actions/strands-coder)**
+
+### 1. Add the workflow to your repo
+
+Create `.github/workflows/agent.yml`:
+
+```yaml
+name: AI Agent
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Task for the agent'
+        required: true
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: cagataycali/strands-coder@v1
+        with:
+          prompt: ${{ github.event.inputs.prompt || 'Respond to this GitHub event' }}
+          provider: bedrock
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+```
+
+### 2. Add secrets
+
+| Secret | Description |
+|--------|-------------|
+| `AWS_ROLE_ARN` | ARN of IAM role with Bedrock access ([setup guide](#-github-actions-setup-recommended)) |
+| `PAT_TOKEN` | GitHub Personal Access Token with repo permissions |
+
+### 3. Trigger the agent
+
+- **Open an issue** → Agent responds automatically
+- **Comment on PR** → Agent reviews and suggests
+- **Manual dispatch** → Run any prompt on-demand
+
+> 💡 **Alternative providers**: Set `provider: anthropic` with `ANTHROPIC_API_KEY`, or `provider: openai` with `OPENAI_API_KEY`
+
+---
 
 ## How It Works
 
@@ -780,7 +843,8 @@ Apache-2.0 - see [LICENSE](LICENSE) file.
 ## Links
 
 <div align="center">
-  <a href="https://github.com/cagataycali/strands-coder">GitHub</a>
+  <a href="https://github.com/marketplace/actions/strands-coder">Marketplace</a>
+  ◆ <a href="https://github.com/cagataycali/strands-coder">GitHub</a>
   ◆ <a href="https://pypi.org/project/strands-coder/">PyPI</a>
   ◆ <a href="https://dev.strands.my">Dashboard</a>
   ◆ <a href="https://strandsagents.com/">Strands Docs</a>
