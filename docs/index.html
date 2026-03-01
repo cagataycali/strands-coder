@@ -649,6 +649,11 @@
                     <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:6px;">Format: minute hour day month weekday</div>
                 </div>
                 <div class="form-group">
+                    <label class="form-label">Workflow Target</label>
+                    <input class="form-input" id="jobWorkflow" placeholder="agent.yml" value="agent.yml">
+                    <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:6px;">🖥️ agent.yml · 🤖 thor.yml · 🎮 isaac-sim.yml · 🌐 owner/repo/file.yml</div>
+                </div>
+                <div class="form-group">
                     <label class="form-label">Prompt</label>
                     <textarea class="form-input" id="jobPrompt" rows="4"></textarea>
                 </div>
@@ -1673,13 +1678,15 @@
                 container.innerHTML = jobs.map(jobId => {
                     const job = scheduleData.jobs[jobId];
                     const enabled = job.enabled !== false;
+                    const wf = job.workflow || 'agent.yml';
+                    const wfIcon = wf.includes('thor') ? '🤖' : wf.includes('isaac') ? '🎮' : wf.includes('/') && wf.split('/').length >= 3 ? '🌐' : '🖥️';
                     return `
                         <div class="job-item ${enabled ? '' : 'disabled'} ${selectedJob === jobId ? 'selected' : ''}" onclick="window.selectJobDetail('${jobId}')">
                             <div class="job-title">
-                                <span style="color:${enabled ? '#fff' : 'rgba(255,255,255,0.4)'};">${escapeHtml(jobId)}</span>
+                                <span style="color:${enabled ? '#fff' : 'rgba(255,255,255,0.4)'};">${wfIcon} ${escapeHtml(jobId)}</span>
                                 <span class="badge" style="background:${enabled ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'};">${enabled ? 'ON' : 'OFF'}</span>
                             </div>
-                            <div class="job-cron">${job.cron || job.run_at || '-'}</div>
+                            <div class="job-cron">${job.cron || job.run_at || '-'} · <span style="opacity:0.6">${wf}</span></div>
                         </div>
                     `;
                 }).join('');
@@ -1700,10 +1707,12 @@
 
                 const job = scheduleData.jobs[selectedJob];
                 const enabled = job.enabled !== false;
+                const wf = job.workflow || 'agent.yml';
+                const wfIcon = wf.includes('thor') ? '🤖' : wf.includes('isaac') ? '🎮' : wf.includes('/') && wf.split('/').length >= 3 ? '🌐' : '🖥️';
                 
                 container.innerHTML = `
                     <div class="job-detail-header">
-                        <h4 style="margin:0;">${escapeHtml(selectedJob)}</h4>
+                        <h4 style="margin:0;">${wfIcon} ${escapeHtml(selectedJob)}</h4>
                         <div class="job-detail-actions">
                             <button class="btn btn-sm" onclick="window.toggleJobEnabled('${selectedJob}')">${enabled ? '⏸ Disable' : '▶ Enable'}</button>
                             <button class="btn btn-sm" onclick="window.editJob('${selectedJob}')">✏️ Edit</button>
@@ -1711,9 +1720,15 @@
                         </div>
                     </div>
                     
-                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;margin-bottom:14px;">
-                        <div style="font-size:12px;color:rgba(255,255,255,0.5);text-transform:uppercase;margin-bottom:6px;">Schedule</div>
-                        <div style="font-size:16px;font-family:'SF Mono',monospace;color:#fff;">${job.cron || job.run_at || '-'}</div>
+                    <div style="display:flex;gap:10px;margin-bottom:14px;">
+                        <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;">
+                            <div style="font-size:12px;color:rgba(255,255,255,0.5);text-transform:uppercase;margin-bottom:6px;">Schedule</div>
+                            <div style="font-size:16px;font-family:'SF Mono',monospace;color:#fff;">${job.cron || job.run_at || '-'}</div>
+                        </div>
+                        <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;">
+                            <div style="font-size:12px;color:rgba(255,255,255,0.5);text-transform:uppercase;margin-bottom:6px;">Workflow</div>
+                            <div style="font-size:14px;font-family:'SF Mono',monospace;color:#fff;">${wfIcon} ${escapeHtml(wf)}</div>
+                        </div>
                     </div>
                     
                     <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;">
@@ -1729,6 +1744,7 @@
                 document.getElementById('jobId').value = '';
                 document.getElementById('jobId').disabled = false;
                 document.getElementById('jobCron').value = '';
+                document.getElementById('jobWorkflow').value = 'agent.yml';
                 document.getElementById('jobPrompt').value = '';
             };
 
@@ -1741,6 +1757,7 @@
                 document.getElementById('jobId').value = jobId;
                 document.getElementById('jobId').disabled = true;
                 document.getElementById('jobCron').value = job.cron || '';
+                document.getElementById('jobWorkflow').value = job.workflow || 'agent.yml';
                 document.getElementById('jobPrompt').value = job.prompt || '';
             };
 
@@ -1764,12 +1781,13 @@
                 const jobId = document.getElementById('jobId').value.trim();
                 const cron = document.getElementById('jobCron').value.trim();
                 const prompt = document.getElementById('jobPrompt').value.trim();
+                const workflow = document.getElementById('jobWorkflow').value.trim() || 'agent.yml';
                 if (!jobId || !cron || !prompt) return showToast('Fill all');
                 
                 if (!scheduleData.jobs) scheduleData.jobs = {};
                 
                 const existingEnabled = scheduleData.jobs[jobId]?.enabled;
-                scheduleData.jobs[jobId] = { cron, prompt, enabled: existingEnabled !== undefined ? existingEnabled : true };
+                scheduleData.jobs[jobId] = { cron, prompt, workflow, enabled: existingEnabled !== undefined ? existingEnabled : true };
                 
                 try {
                     await saveScheduleToGithub();
