@@ -783,6 +783,74 @@ def extract_user_message() -> str:
     return ""
 
 
+def load_agents_md() -> str:
+    """
+    Load AGENTS.md from the workspace for project-specific rules and learnings.
+
+    Searches for AGENTS.md in:
+    1. Current working directory (repo root in CI)
+    2. GITHUB_WORKSPACE env var (GitHub Actions workspace)
+    3. Parent directories up to 3 levels (for monorepo support)
+
+    AGENTS.md is a living document that contains:
+    - Code standards and non-negotiable rules
+    - Learnings from past reviews and bugs
+    - Patterns to follow for new contributions
+    - Self-update protocol for autonomous agents
+
+    Returns formatted markdown for injection into system prompt.
+    """
+    search_paths = []
+
+    # 1. Current working directory
+    cwd = Path.cwd()
+    search_paths.append(cwd / "AGENTS.md")
+
+    # 2. GitHub Actions workspace
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if workspace:
+        search_paths.append(Path(workspace) / "AGENTS.md")
+
+    # 3. Parent directories (up to 3 levels for monorepos)
+    for i in range(1, 4):
+        parent = cwd
+        for _ in range(i):
+            parent = parent.parent
+        search_paths.append(parent / "AGENTS.md")
+
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    unique_paths = []
+    for p in search_paths:
+        resolved = str(p.resolve())
+        if resolved not in seen:
+            seen.add(resolved)
+            unique_paths.append(p)
+
+    for agents_path in unique_paths:
+        try:
+            if agents_path.exists() and agents_path.is_file():
+                content = agents_path.read_text(encoding="utf-8", errors="ignore")
+                if content.strip():
+                    print(f"✓ AGENTS.md loaded from {agents_path} ({len(content)} chars)")
+                    return f"""
+---
+## 📋 AGENTS.md — Project Rules & Learnings
+
+**Source:** `{agents_path}`
+**Last Modified:** {datetime.fromtimestamp(agents_path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")}
+
+{content}
+
+---
+"""
+        except Exception as e:
+            print(f"⚠ Failed to read {agents_path}: {e}")
+            continue
+
+    return ""
+
+
 def build_system_prompt() -> str:
     """Build comprehensive system prompt from environment variables and context."""
     # Base system prompt
@@ -796,6 +864,11 @@ def build_system_prompt() -> str:
     input_system_prompt = os.getenv("INPUT_SYSTEM_PROMPT", "")
     if input_system_prompt:
         base_prompt = f"{base_prompt}\n\n{input_system_prompt}"
+
+    # Add AGENTS.md project rules and learnings (loaded EARLY so all context is framed by rules)
+    agents_md = load_agents_md()
+    if agents_md:
+        base_prompt = f"{base_prompt}\n\n{agents_md}"
 
     # Add rich GitHub event context (issue threads, PR reviews, etc.)
     github_event_context = fetch_github_event_context()
